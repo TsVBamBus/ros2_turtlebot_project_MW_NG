@@ -93,6 +93,8 @@ class GoToActionServer(Node):
         if goal_handle.is_active:
             goal_handle.succeed()
             self.get_logger().info('Ziel erfolgreich abgeschlossen')
+            result.success= True
+            return result
 
     def odom_callback(self, msg):
         self.aktuelle_pos = [
