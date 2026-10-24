@@ -3,6 +3,8 @@ import rclpy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from interface_package .action import GoTo
 
@@ -14,6 +16,12 @@ class GoToActionServer(Node):
 
         self.aktuelle_pos = [0.0, 0.0]
         print(self.aktuelle_pos)
+
+        #Callback Group für ActionServer
+        self.action_cb_group = ReentrantCallbackGroup()
+
+        #Callback Group für OdomSubscriber
+        self.odom_cb_group = MutuallyExclusiveCallbackGroup()
 
         self.subscription = self.create_subscription(
             Odometry, 'odom', self.odom_callback, 10
@@ -29,6 +37,7 @@ class GoToActionServer(Node):
             goal_callback=self.goal_callback,
             handle_accepted_callback=self.handle_accepted_callback,
             cancel_callback=self.cancel_callback,
+            callback_group=self.action_cb_group,
         )
 
         self.active_goal_handle = None
@@ -41,7 +50,7 @@ class GoToActionServer(Node):
         #Wenn bereits Ziel aktiv --> altes Ziel abbrechen
         if (self.active_goal_handle is not None and self.active_goal_handle.is_active):
 
-            #Ein vorheriges Ziel läuft noch. Es wird abgebrochen.')
+            #Ein vorheriges Ziel läuft noch. Es wird abgebrochen
             self.active_goal_handle.abort()
 
         return GoalResponse.ACCEPT
@@ -114,12 +123,16 @@ def main():
 
     goto_action_server = GoToActionServer()
 
+    executor = MultiThreadedExecutor()
+    executor.add_node(goto_action_server)
+
     try:
-        rclpy.spin(goto_action_server)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
         goto_action_server.destroy_node()
         rclpy.shutdown()
 
-
+if __name__ == "__main__":
+    main()
