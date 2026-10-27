@@ -19,6 +19,7 @@ spaeter nur noch "drumherum" gebaut:
  
 
 import math
+import numpy
 
 
  

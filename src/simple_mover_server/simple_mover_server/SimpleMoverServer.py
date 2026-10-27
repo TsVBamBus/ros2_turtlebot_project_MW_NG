@@ -1,4 +1,5 @@
 import time
+import math
 import rclpy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
@@ -6,6 +7,7 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from simple_mover_server.Bahnberechnung import Bahnberechnung
 from interface_package .action import GoTo
 
 class GoToActionServer(Node):
@@ -14,7 +16,14 @@ class GoToActionServer(Node):
         super().__init__('goto_action_server')
         print('Hi from simple_mover_server.')
 
-        self.aktuelle_pos = [0.0, 0.0]
+        #Initialisierung Bahnberechnung
+        self.bahner = Bahnberechnung(
+            toleranz=0.08,  # Toleranz für Zielereichung  0.08 = 10cm
+            max_lin=0.22,   # max lineare Geschwindigkeit
+            max_rot=1.0,    # max rotation Geschwindigkeit
+            publisher=self.publish_cmd_vel,
+        )
+
         print(self.aktuelle_pos)
 
         #Callback Group für ActionServer
@@ -24,7 +33,7 @@ class GoToActionServer(Node):
         self.odom_cb_group = MutuallyExclusiveCallbackGroup()
 
         self.subscription = self.create_subscription(
-            Odometry, 'odom', self.odom_callback, 10
+            Odometry, 'odom', self.odom_callback, 10, callback_group=self.odom_cb_group
         )
 
         self.publisher_ = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -41,7 +50,7 @@ class GoToActionServer(Node):
         )
 
         self.active_goal_handle = None
-
+        self.get_logger().info('Action Server ist bereit.')
         print("Ende")
 
     #Bearbeitet neue Zielanfragen 
@@ -70,13 +79,54 @@ class GoToActionServer(Node):
 
         self.get_logger().info("Ausführung gestartet")
 
-        #Setzt das aktive Ziel auf das aktuelle Ziel
+        # Setzt das aktive Ziel auf das aktuelle Ziel
         self.active_goal_handle = goal_handle
+
+        # Zielkoordinaten aus dem Goal-Request
+        ziel_x = goal_handle.request.target.x
+        ziel_y = goal_handle.request.target.y
+        self.bahner.setZiel(ziel_x, ziel_y)
 
         #Feedback und Result
         feedback_msg = GoTo.Feedback()
         result = GoTo.Result()
 
+        while rclpy.ok():
+            # 1. Prüfen, ob Client abgebrochen hat
+            if goal_handle.is_cancel_requested:
+                self.bahner.stopp()  # Roboter anhalten
+                goal_handle.canceled()
+                self.get_logger().info('Ziel vom Client abgebrochen.')
+                result.success = False
+                return result
+
+            # 2. Prüfen, ob durch ein neueres Ziel verdrängt (preempted)
+            if not goal_handle.is_active:
+                self.bahner.stopp()
+                self.get_logger().info('Ziel wurde präemptiert.')
+                result.success = False
+                return result
+
+            # 3. Prüfen, ob das Ziel erreicht wurde
+            if self.bahner.ziel_erreicht():
+                self.bahner.stopp()
+                goal_handle.succeed()
+                self.get_logger().info('Ziel erfolgreich erreicht!')
+                result.success = True
+                return result
+
+            # 4. Bahn berechnen und Fahrbefehl übergeben (wird via pubWeg automatisch an pub_cmd_vel gesendet)
+            vel, rot = self.bahner.bahn()
+            self.bahner.pubWeg((vel, rot))
+
+            # 5. Live-Feedback senden (aktueller Abstand zum Ziel)
+            feedback_msg.distance = float(self.bahner.abstand())
+            goal_handle.publish_feedback(feedback_msg)
+
+            time.sleep(0.05)  # 20 Hz Schleifenrate
+
+        # Dummy Feedback Schleife
+        """
         for i in range(10):
 
             if goal_handle.is_cancel_requested:
@@ -105,13 +155,23 @@ class GoToActionServer(Node):
             result.success= True
             return result
 
-    def odom_callback(self, msg):
-        self.aktuelle_pos = [
-            msg.pose.pose.position.x,
-            msg.pose.pose.position.y,
-        ]
+        """
 
-    def publish_cmd_vel(self, linear_x, angular_z):
+    def odom_callback(self, msg):
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
+
+        # 2. Orientierung (Quaternion) in Yaw-Winkel (theta) umrechnen
+        q = msg.pose.pose.orientation
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        theta = math.atan2(siny_cosp, cosy_cosp)
+
+        # 3. An die Bahnberechnung übergeben
+        self.bahner.setAktuellePos(x, y, theta)
+
+    def publish_cmd_vel(self, weg):
+        linear_x, angular_z = weg
         twist = Twist()
         twist.linear.x = float(linear_x)
         twist.angular.z = float(angular_z)
