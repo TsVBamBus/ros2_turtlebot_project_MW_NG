@@ -24,7 +24,7 @@ class GoToActionServer(Node):
             publisher=self.publish_cmd_vel,
         )
 
-        print(self.aktuelle_pos)
+        print(self.bahner.aktuellePos())
 
         #Callback Group für ActionServer
         self.action_cb_group = ReentrantCallbackGroup()
