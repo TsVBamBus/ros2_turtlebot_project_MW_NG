@@ -70,6 +70,9 @@ class Bahnberechnung:
         self.max_rot = max_rot
         self.k_lin = k_lin
         self.k_rot = k_rot
+        self.ziel_orientierung = 0.0
+        self.hat_ziel_orientierung = False
+        self.winkel_toleranz = 0.05
 
  
 
@@ -87,7 +90,7 @@ class Bahnberechnung:
 
  
 
-    def setAktuellePos(self, x, y, theta=0.0):
+    def setAktuellePos(self, x, y, theta):
         """Setzt die aktuelle Pose (wird spaeter vom odom-Callback aufgerufen)."""
         self.aktuelle_position = (x, y)
         self.aktuelle_orientierung = theta
@@ -100,11 +103,15 @@ class Bahnberechnung:
 
  
 
-    def setZiel(self, x, y):
+    def setZiel(self, x, y, theta=None):
         """Setzt die Zielposition."""
         self.ziel_position = (x, y)
+        if theta is not None:
+            self.ziel_orientierung = theta
+            self.hat_ziel_orientierung = True
+        else:
+            self.hat_ziel_orientierung = False
 
- 
 
     # ------------------------------------------------------------------
     # Geometrie
@@ -115,7 +122,17 @@ class Bahnberechnung:
         dy = self.ziel_position[1] - self.aktuelle_position[1]
         return math.hypot(dx, dy)
 
- 
+    def position_erreicht(self):
+        return self.abstand() <= self.toleranz
+
+    def orientierung_erreicht(self):
+        if not self.hat_ziel_orientierung:
+            return True
+        fehler = normalisiere_winkel(self.ziel_orientierung - self.aktuelle_orientierung)
+        return abs(fehler) <= self.winkel_toleranz
+
+    def ziel_erreicht(self):
+        return self.position_erreicht() and self.orientierung_erreicht()   # mit Klammern!
 
     def winkel_zum_ziel(self):
         """Winkelfehler (rad) zwischen Blickrichtung und Ziel, in (-pi, pi].
@@ -129,11 +146,6 @@ class Bahnberechnung:
         winkel_ziel = math.atan2(dy, dx)
         return normalisiere_winkel(winkel_ziel - self.aktuelle_orientierung)
 
- 
-
-    def ziel_erreicht(self):
-        """True, wenn der Abstand zum Ziel innerhalb der Toleranz liegt."""
-        return self.abstand() <= self.toleranz
 
  
 
@@ -141,35 +153,21 @@ class Bahnberechnung:
     # Bahn
     # ------------------------------------------------------------------
     def bahn(self):
-        """Berechnet den naechsten Fahrbefehl.
+    # Phase 1: zur Position fahren
+        if not self.position_erreicht():
+            fehler = self.winkel_zum_ziel()
+            rot = max(-self.max_rot, min(self.max_rot, self.k_rot * fehler))
+            vel = min(self.max_lin, self.k_lin * self.abstand())
+            vel *= max(0.0, math.cos(fehler))
+            return (vel, rot)
 
- 
+    # Phase 2: auf Zielwinkel drehen
+        if not self.orientierung_erreicht():
+            fehler = normalisiere_winkel(self.ziel_orientierung - self.aktuelle_orientierung)
+            rot = max(-self.max_rot, min(self.max_rot, self.k_rot * fehler))
+            return (0.0, rot)
 
-        Rueckgabe: (vel, rot) = (lineare Geschwindigkeit, Drehgeschwindigkeit).
-        Ist das Ziel erreicht, ist der Befehl (0.0, 0.0).
-        """
-        if self.ziel_erreicht():
-            return (0.0, 0.0)
-
- 
-
-        fehler = self.winkel_zum_ziel()
-
- 
-
-        # Drehung: proportional zum Winkelfehler, begrenzt
-        rot = max(-self.max_rot, min(self.max_rot, self.k_rot * fehler))
-
- 
-
-        # Vorwaertsfahrt: proportional zum Abstand, begrenzt, und nur
-        # wenn der Roboter ungefaehr zum Ziel zeigt (cos < 0 -> nicht rueckwaerts)
-        vel = min(self.max_lin, self.k_lin * self.abstand())
-        vel *= max(0.0, math.cos(fehler))
-
- 
-
-        return (vel, rot)
+        return (0.0, 0.0)
 
  
 

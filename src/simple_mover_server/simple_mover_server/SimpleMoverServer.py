@@ -85,7 +85,8 @@ class GoToActionServer(Node):
         # Zielkoordinaten aus dem Goal-Request
         ziel_x = goal_handle.request.target.x
         ziel_y = goal_handle.request.target.y
-        self.bahner.setZiel(ziel_x, ziel_y)
+        ziel_theta = goal_handle.request.target.theta
+        self.bahner.setZiel(ziel_x, ziel_y, ziel_theta)
 
         #Feedback und Result
         feedback_msg = GoTo.Feedback()
