@@ -1,0 +1,8 @@
+# Goal
+float32 winkel 3.14159265   # [rad] --> Drehung um 180 Grad
+---
+# Result
+bool success
+---
+# Feedback
+float32 restwinkel

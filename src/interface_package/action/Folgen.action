@@ -1,0 +1,9 @@
+# Goal: leer - läuft bis der system_node abbricht
+---
+# Result
+bool success
+---
+# Feedback
+float32 abstand_ist
+float32 abstand_soll
+float32 v_ist
