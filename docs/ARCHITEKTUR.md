@@ -1,20 +1,24 @@
+
+
+
+
+
+
+
+
+# Architektur Markdown wurde von KI erstellt und bildet momentan keine korrekte Architektur des Gesamten Systems dar!!
+# Dient nur zur Orientierung
+
+
+
+
+
+
+
+----------------------------------------------------------------------------------------------------------------------
+
 # Software-Architektur – TurtleBot3: Fahren im Rohr & Folgemanöver
-
-> Stand: 12.11.2026. Plattform: TurtleBot3, ROS 2 Humble, Entwicklung im Docker-Devcontainer.
-> Grundlage ist die Team-Skizze `Architektur.pdf` (system_node, fahren_im_rohr_node, folgen_node,
-> camera_node, rfid_node). Kapitel 2 erklärt, wo und warum dieses Dokument von der Skizze abweicht.
->
-> Das System besteht aus zwei Teilaufgaben, die am Ende zu **einem** System integriert werden:
-> - **1.3.2 Fahren im Rohr** – auf dem Rohrgrund fahren, Abweichung ausregeln, an den Enden (RFID) wenden
-> - **1.3.3 Folgemanöver** – Roboter per ArUco erkennen, Abstand berechnen, mit Soll-Abstand folgen
-
----
-
 ## 1. Anforderungen
-
-Jede Anforderung bekommt eine ID. Damit lässt sich in Code, Tests und Pull Requests darauf verweisen
-(z.B. Commit „R-FOLGE-6: Begrenzung Soll-Abstand“). Die Zuordnung zu den Komponenten steht in [Kapitel 8](#8-rückverfolgbarkeit-anforderung--komponente--test).
-
 ### 1.1 Fahren im Rohr (Aufgabe 1.3.2)
 
 | ID | Anforderung |
@@ -161,7 +165,6 @@ ros2_turtlebot_project/
     │   ├── msg/
     │   │   ├── RohrLage.msg
     │   │   ├── ArucoMarker.msg
-    │   │   ├── ArucoMarkerArray.msg
     │   │   ├── VorderRoboter.msg
     │   │   └── Rfid.msg
     │   └── action/
@@ -174,10 +177,7 @@ ros2_turtlebot_project/
     │       ├── camera_node.py
     │       ├── aruco_erkennung.py        # reine Logik (OpenCV)
     │       ├── roboter_erkennung.py      # reine Logik (ID → Seite, Abstand, steht/fährt)
-    │       ├── rohr_lage_node.py
     │       ├── rohr_lage.py              # reine Logik (Rollwinkel, Filter, Offset)
-    │       ├── rfid_node.py
-    │       └── rfid_erkennung.py         # reine Logik (UID-Liste, Entprellen)
     │
     ├── fahren_rohr/              # ament_python
     │   └── fahren_rohr/
@@ -185,7 +185,7 @@ ros2_turtlebot_project/
     │       ├── fahren_rohr_logik.py
     │       ├── regler_linear.py          # Geschwindigkeit mit Rampe
     │       ├── regler_quer.py            # PD auf Rollwinkel – wird auch von folgen genutzt
-    │       └── wenden_logik.py           # Drehung um 180° (kann Bahnberechnung nutzen)
+    │       └── wenden_logik.py           # Drehung um 180° 
     │
     ├── folgen/                   # ament_python, <depend>fahren_rohr</depend>
     │   └── folgen/
@@ -197,27 +197,10 @@ ros2_turtlebot_project/
     │       ├── system_node.py            # Action-Clients, Mux, Watchdog
     │       ├── system_logik.py           # Zustandsmaschine (reine Logik)
     │       └── sollwerte.py              # Begrenzung + Defaults (R-ROHR-3, R-FOLGE-6)
-    │
-    └── bringup/                  # ament_python (nur Daten)
-        ├── launch/
-        │   ├── roboter.launch.py         # auf dem TurtleBot: bringup, Kamera, rfid_node
-        │   └── laptop.launch.py          # im Container: alles andere
-        └── config/
-            ├── regler.yaml               # Verstärkungen, Rampen, ω_max
-            ├── aruco.yaml                # Dictionary, Markergröße, ID → (Roboter, Seite)
-            ├── rfid.yaml                 # UIDs der Wendeplattformen
-            └── camera_calibration.yaml
+
 ```
 
-Hinweis zum Paketnamen `system`: Er ist sehr allgemein. Bei Namenskonflikten (z.B. mit einem
-Python-Modul) in `rohr_system` umbenennen.
-
----
-
 ## 5. Schnittstellen (`interface_package`)
-
-Diese Schnittstellen sollten **als Erstes** gemeinsam festgelegt und gemergt werden.
-Danach kann jeder an seinem Paket arbeiten.
 
 ### 5.1 Vorgegebene Topics (aus der Aufgabe)
 
@@ -225,12 +208,6 @@ Danach kann jeder an seinem Paket arbeiten.
 |---|---|---|---|---|
 | `/geschwindigkeit` | `std_msgs/Float32` | 0.0 m/s | [0, 0.2] | `system_node` |
 | `/abstand` | `std_msgs/Float32` | 0.5 m | [0.2, 1.0] | `system_node` |
-
-Die genauen Topic-Namen (Groß-/Kleinschreibung, Namespace) beim Betreuer erfragen. Im Code nicht
-fest verdrahten, sondern per Remapping in der Launch-Datei anpassbar halten. Test von Hand:
-```bash
-ros2 topic pub --once /geschwindigkeit std_msgs/msg/Float32 "{data: 0.15}"
-```
 
 ### 5.2 Messages
 
@@ -245,10 +222,6 @@ bool    gueltig
 int32 id
 geometry_msgs/Pose pose   # Pose des Markers im Kamera-Frame
 
-# ArucoMarkerArray.msg    (nur intern/Debug im camera_node)
-std_msgs/Header header
-ArucoMarker[] markers
-
 # VorderRoboter.msg
 std_msgs/Header header
 uint8 SEITE_HINTEN=0
@@ -260,10 +233,6 @@ float32 abstand           # [m]
 bool    steht
 float32 geschwindigkeit   # geschätzte Geschwindigkeit des anderen [m/s]
 
-# Rfid.msg
-std_msgs/Header header
-string uid
-bool   wendeplattform     # UID steht in rfid.yaml als Wendeplattform
 ```
 
 ### 5.3 Actions
@@ -273,8 +242,7 @@ Alle Actions laufen, bis ihr Ziel erreicht ist oder der `system_node` sie abbric
 ```text
 # FahrenRohr.action – fahre bis zum Rohrende (Wendeplattform)
 ---
-uint8 GRUND_RFID=0
-uint8 GRUND_ABGEBROCHEN=1
+
 uint8 grund
 bool  success
 ---
@@ -284,8 +252,7 @@ float32 gefahrene_strecke
 
 # Folgen.action – folge dem Vorderroboter bis zum Rohrende
 ---
-uint8 GRUND_RFID=0
-uint8 GRUND_ABGEBROCHEN=1
+
 uint8 grund
 bool  success
 ---
@@ -301,11 +268,6 @@ bool success
 float32 restwinkel
 ```
 
-Wie in der Skizze abonnieren `fahren_rohr_node` und `folgen_node` den RFID-Tag selbst: Erreichen
-sie eine Wendeplattform, beenden sie ihre Action mit `GRUND_RFID`. Die Action hat damit ein
-natürliches Ende („fahre bis zum Rohrende“), und der `system_node` startet danach das Wenden.
-Den Tag, auf dem der Roboter beim Start der Action steht, ignorieren beide Knoten (R-SYS-5).
-
 ### 5.4 Topics (Übersicht)
 
 | Topic | Typ | Publisher | Subscriber |
@@ -317,14 +279,15 @@ Den Tag, auf dem der Roboter beim Start der Action steht, ignorieren beide Knote
 | `/camera/image_raw` (bzw. `/compressed`), `/camera/camera_info` | `sensor_msgs/...` | Kameratreiber | camera_node |
 | `/rohr_lage` | `interface_package/RohrLage` | rohr_lage_node | fahren_rohr_node, folgen_node |
 | `/vorder_roboter` | `interface_package/VorderRoboter` | camera_node | system_node, folgen_node |
-| `/rfid` | `interface_package/Rfid` | rfid_node | fahren_rohr_node, folgen_node |
 | `/aruco/debug_image` | `sensor_msgs/Image` | camera_node | rqt (Debug) |
 | `/fahren_rohr/cmd_vel_roh` | `geometry_msgs/Twist` | fahren_rohr_node | system_node |
 | `/folgen/cmd_vel_roh` | `geometry_msgs/Twist` | folgen_node | system_node |
 | `/cmd_vel` | `geometry_msgs/Twist` | system_node | turtlebot3_bringup |
 | `/system/zustand`, `/system/fehler` | `std_msgs/String` | system_node | Konsole / Debug |
 
----
+-------------------------------------------------------------------------------------------------------
+
+# Folgender Abschnitt wurde noch nicht überarbeitet !!!
 
 ## 6. Komponenten im Detail
 
@@ -450,95 +413,3 @@ v = clamp(min(v, v_soll), 0, 0.2)        # nicht schneller als im Rohr erlaubt (
 - **Nullpunkt kalibrieren:** im Stand auf ebenem Boden den Mittelwert als Offset speichern.
 - Kamera-basierte Rohrerkennung (in der Skizze im `camera_node`) ist eine optionale Ausbaustufe und
   kann später hier mit einfließen.
-
-### 6.6 `rfid_node` (R-ROHR-7)
-
-- Läuft auf dem Roboter und liest den RFID-Leser aus (Hardware im Labor klären, z.B. RC522 über
-  SPI oder ein USB-Leser).
-- Publiziert jede erkannte UID mit dem Flag `wendeplattform` (Abgleich mit `rfid.yaml`).
-- Entprellen: Derselbe Tag wird nur einmal gemeldet, solange er ununterbrochen gelesen wird.
-
----
-
-## 7. Verteilung und Netzwerk
-
-| Auf dem Roboter (RPi) | Im Container auf dem Laptop |
-|---|---|
-| `turtlebot3_bringup`, Kameratreiber, `rfid_node` | `camera_node`, `rohr_lage_node`, `fahren_rohr_node`, `folgen_node`, `system_node`, rqt/RViz |
-
-- **Eigene `ROS_DOMAIN_ID` pro Team** (in `devcontainer.json` → `containerEnv` und auf dem Roboter
-  in `~/.bashrc`). Beim Folgemanöver fahren mehrere TurtleBots gleichzeitig, mit gleicher ID würde
-  euer Roboter das `/cmd_vel` eines anderen Teams ausführen. Die Roboter erkennen sich nur optisch,
-  sie müssen nicht miteinander kommunizieren.
-- Kamerabilder komprimiert übertragen (`ros-humble-image-transport-plugins`). Wird das WLAN zum
-  Problem, `camera_node` auf den Roboter verlegen. Dafür ändert sich nur die Launch-Datei.
-- Das gilt genauso für `rohr_lage_node` und die Regler, falls die Latenz über WLAN stört.
-
----
-
-## 8. Rückverfolgbarkeit: Anforderung → Komponente → Test
-
-| Anforderung | Komponente | Nachweis |
-|---|---|---|
-| R-ROHR-1 | `system_node` | `ros2 topic pub /geschwindigkeit ...` → `/soll/geschwindigkeit` ändert sich |
-| R-ROHR-2 | `sollwerte.py`, `regler_linear.py` | Unit-Test: ohne Nachricht → v = 0 |
-| R-ROHR-3 | `sollwerte.py` | Unit-Test: −1 → 0, 0.1 → 0.1, 5 → 0.2, NaN → ignoriert |
-| R-ROHR-4 | `regler_quer.py`, `rohr_lage_node` | Unit-Test Regler; Fahrversuch mit seitlichem Start im Rohr |
-| R-ROHR-5 | `rohr_lage_node` | Roboter von Hand kippen → φ plausibel |
-| R-ROHR-6 | `fahren_rohr_node` (Wenden), `system_logik.py` | Fahrversuch: 180° drehen, zurück ins Rohr |
-| R-ROHR-7 | `rfid_node`, `FahrenRohr`/`Folgen` | Tag an den Leser halten → `/rfid`, Action endet mit `GRUND_RFID` |
-| R-FOLGE-1 | `roboter_erkennung.py`, `system_logik.py` | Unit-Test ID → Seite; Versuch: Roboter von vorne → Fehlermeldung |
-| R-FOLGE-2 | `roboter_erkennung.py` | Marker in bekanntem Abstand (Maßband) messen |
-| R-FOLGE-3 | `aruco_erkennung.py` | Debug-Bild zeigt Marker mit ID und Achsen |
-| R-FOLGE-4 | `system_node` | `ros2 topic pub /abstand ...` |
-| R-FOLGE-5 | `folgen_logik.py`, `sollwerte.py` | Unit-Test Default 0.5; Versuch: Abstand zu fahrendem Roboter hält sich |
-| R-FOLGE-6 | `sollwerte.py` | Unit-Test: 0.1 → 0.2, 0.7 → 0.7, 3 → 1.0 |
-| R-SYS-1…5 | siehe Kap. 6 | Unit-Tests `system_logik.py` (Zustandsübergänge), Versuche |
-
----
-
-## 9. Team, Meilensteine, Zusammenarbeit
-
-### Aufteilung (Vorschlag, entlang der Pakete)
-
-| Person | Pakete |
-|---|---|
-| A | `fahren_rohr` + `rohr_lage_node` (Teil 1.3.2: IMU, Regler quer/linear, Wenden) |
-| B | `folgen` + `camera_node` (Teil 1.3.3: Kamera, Kalibrierung, ArUco, Abstandsregler) |
-| C | `system` + `rfid_node` + `bringup` (Zustandsmaschine, Sollwerte, Mux, Launch-Dateien, Integration) |
-
-Gemeinsam zuerst: `interface_package` festlegen.
-
-### Meilensteine
-
-1. `interface_package` + leere Paketgerüste bauen mit `colcon build`; Unit-Tests für `sollwerte.py` sind grün
-2. `rohr_lage_node` liefert plausiblen Rollwinkel; `FahrenRohr` fährt mit `/geschwindigkeit` und regelt quer aus
-3. RFID erkannt, Wenden funktioniert, `system_node` pendelt zwischen den Rohrenden (**1.3.2 komplett**)
-4. `camera_node`: Abstand und vorne/hinten stimmen (**1.3.3 Wahrnehmung**)
-5. `Folgen` mit `/abstand`, Zustandswechsel FAHREN_ROHR ↔ FOLGEN, Gegenverkehr (**1.3.3 komplett**)
-6. Gesamttest mit mehreren Robotern
-
-### Zusammenarbeit im GitHub-Repo
-
-- `main` schützen, auf Feature-Branches arbeiten (`feature/regler-quer`, …) und per Pull Request
-  mit Review durch eine zweite Person mergen.
-- In Commits und PRs die Anforderungs-ID nennen (`R-ROHR-3: ...`).
-- Änderungen am `interface_package` immer kurz absprechen, sie betreffen alle.
-- `.gitignore` um `__pycache__/` und `*.pyc` ergänzen (aktuell sind `.pyc`-Dateien eingecheckt).
-- Parameter (Verstärkungen, Marker-IDs, RFID-UIDs) nur in YAML-Dateien ablegen, nicht im Code.
-
----
-
-## 10. Offene Punkte / mit dem Betreuer klären
-
-- **Topic-Namen:** genau `Geschwindigkeit` / `Abstand` (Großschreibung?), mit oder ohne Namespace?
-- **Hardware:** TurtleBot3-Modell (der Burger hat ab Werk keine Kamera), welche Kamera mit welchem
-  Treiber, welcher RFID-Leser und wie ist er angeschlossen?
-- **Rohr:** Durchmesser, Länge. Passt der Roboter hinein? Ist es im Rohr hell genug für die Marker?
-- **Wendeplattform:** eben und außerhalb des Rohrs? Eigene UID pro Ende?
-- **ArUco:** Dictionary, Markergröße, IDs. Sind Marker vorne *und* hinten angebracht?
-- **Abstand:** zwischen welchen Punkten wird gemessen (Kamera–Marker oder Roboter–Roboter)?
-- **Folgen vs. Soll-Geschwindigkeit:** Darf der Roboter beim Folgen schneller als `/geschwindigkeit`
-  fahren? Hier angenommen: nein, es gilt `min(v_soll, v_folge)`.
-- **Gegenverkehr:** Reicht eine Fehlermeldung, oder soll der Roboter auch anhalten oder wenden?
-  Gilt das auch für einen *fahrenden* Roboter, der von vorne kommt?
