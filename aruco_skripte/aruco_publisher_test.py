@@ -9,7 +9,7 @@ class ArucoNode(Node):
         super().__init__("aruco_node")
         self.publisher = self.create_publisher(Bool, "/aruco/erkannt", 10)
 
-        dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
+        dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100)
         parameter = cv2.aruco.DetectorParameters()
         self.detektor = cv2.aruco.ArucoDetector(dictionary, parameter)
 

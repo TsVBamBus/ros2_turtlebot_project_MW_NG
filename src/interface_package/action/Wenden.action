@@ -1,5 +1,5 @@
 # Goal
-float32 winkel 3.14159265   # [rad] --> Drehung um 180 Grad
+float32 winkel 3.14159265   # [rad] --> Drehung um 180 Grad (eventuell ArUco Erkennung noch dazu)
 ---
 # Result
 bool success

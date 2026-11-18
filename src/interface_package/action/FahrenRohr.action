@@ -4,6 +4,4 @@
 bool success
 ---
 # Feedback
-float32 v_ist
-float32 rollwinkel
-float32 gefahrene_strecke
+float32 abstand
