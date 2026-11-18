@@ -1,0 +1,73 @@
+import math
+
+import cv2
+import numpy as np
+
+MARKER_GROESSEN = {
+    0: 0.172,
+    69: 0.075,
+}
+
+BRENNWEITE = 615.0
+
+
+class ArucoErkennung:
+    def __init__(self):
+        self.kameramatrix = np.array([[BRENNWEITE, 0, 320],
+                                      [0, BRENNWEITE, 240],
+                                      [0, 0, 1]], dtype=np.float32)
+        self.verzerrung = np.zeros((5, 1), dtype=np.float32)
+
+        if hasattr(cv2.aruco, "ArucoDetector"):
+            self.neue_api = True
+            dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100)
+            parameter = cv2.aruco.DetectorParameters()
+            parameter.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+            self.detektor = cv2.aruco.ArucoDetector(dictionary, parameter)
+        else:
+            self.neue_api = False
+            self.dictionary = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_100)
+            self.parameter = cv2.aruco.DetectorParameters_create()
+            self.parameter.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+
+    def suche_marker(self, grau):
+        if self.neue_api:
+            ecken, ids, abgelehnt = self.detektor.detectMarkers(grau)
+        else:
+            ecken, ids, abgelehnt = cv2.aruco.detectMarkers(
+                grau, self.dictionary, parameters=self.parameter)
+        return ecken, ids
+
+    def objektpunkte(self, groesse):
+        h = groesse / 2
+        return np.array([[-h,  h, 0],
+                         [ h,  h, 0],
+                         [ h, -h, 0],
+                         [-h, -h, 0]], dtype=np.float32)
+
+    def erkenne(self, grau):
+        ergebnisse = []
+        ecken, ids = self.suche_marker(grau)
+        if ids is None:
+            return ergebnisse
+
+        for i in range(len(ids)):
+            marker_id = int(ids[i][0])
+            if marker_id not in MARKER_GROESSEN:
+                continue
+
+            ok, rvec, tvec = cv2.solvePnP(
+                self.objektpunkte(MARKER_GROESSEN[marker_id]),
+                ecken[i][0], self.kameramatrix, self.verzerrung,
+                flags=cv2.SOLVEPNP_IPPE_SQUARE)
+            if not ok:
+                continue
+
+            x, y, z = tvec.flatten()
+            ergebnisse.append({
+                "id": marker_id,
+                "tiefe": float(z),
+                "abstand": float(math.sqrt(x * x + y * y + z * z)),
+                "winkel": math.degrees(math.atan2(x, z)),
+            })
+        return ergebnisse

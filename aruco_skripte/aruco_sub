@@ -1,0 +1,33 @@
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Bool, Float32MultiArray
+
+
+class ArucoEmpfaenger(Node):
+    def __init__(self):
+        super().__init__("aruco_empfaenger")
+        self.abo = self.create_subscription(
+            Float32MultiArray, "/aruco/messung", self.messung_erhalten, 10
+        )
+
+    def messung_erhalten(self, nachricht):
+        marker_id = int(nachricht.data[0])
+        abstand = nachricht.data[1]
+        winkel = nachricht.data[2]
+        self.get_logger().info(
+            f"ID {marker_id}: Abstand {abstand * 100:.1f} cm, Winkel {winkel:.1f} Grad")
+
+def main():
+    rclpy.init()
+    node = ArucoEmpfaenger()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    node.destroy_node()
+    if rclpy.ok():
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()
