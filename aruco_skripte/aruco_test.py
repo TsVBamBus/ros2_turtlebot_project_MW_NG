@@ -1,6 +1,6 @@
 import cv2
 
-dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
+dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100)
 parameter = cv2.aruco.DetectorParameters()
 detektor = cv2.aruco.ArucoDetector(dictionary, parameter)
 

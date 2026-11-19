@@ -1,0 +1,8 @@
+Goal für fahren im rohr ist ein abstand
+Folgen ohne goal ist möglich, jedoch nicht idee des projekts, eher node die aufgerufen wird
+nicht array an erkannten markern, sondern pro aruco marker eine message
+-->die zwei publisher weg sondern nur einer
+interface jetzt festlegen --> aruco marker erkannt als boolean doch nicht mitschicken
+abbruchbedingung timer/nach n false messages (je nach dem ob erkannt mitgeschickt wird)
+p regler für fahren
+pi regler für folgen --> gleiche klasse verschiedene instanzen
