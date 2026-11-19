@@ -7,7 +7,7 @@ class ArucoEmpfaenger(Node):
     def __init__(self):
         super().__init__("aruco_empfaenger")
         self.abo = self.create_subscription(
-            Float32MultiArray, "/aruco/messung", self.messung_erhalten, 10
+            Float32MultiArray, "/aruco/marker", self.messung_erhalten, 10
         )
 
     def messung_erhalten(self, nachricht):
@@ -15,7 +15,7 @@ class ArucoEmpfaenger(Node):
         abstand = nachricht.data[1]
         winkel = nachricht.data[2]
         self.get_logger().info(
-            f"ID {marker_id}: Abstand {abstand * 100:.1f} cm, Winkel {winkel:.1f} Grad")
+            f"ID {marker_id}: Abstand {abstand } m, Winkel {winkel:.1f} Grad")
 
 def main():
     rclpy.init()
