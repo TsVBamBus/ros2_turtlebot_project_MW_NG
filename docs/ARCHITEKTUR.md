@@ -6,6 +6,7 @@
 
 
 
+
 # Architektur Markdown wurde von KI erstellt und bildet momentan keine korrekte Architektur des Gesamten Systems dar!!
 # Dient nur zur Orientierung
 
@@ -18,6 +19,13 @@
 ----------------------------------------------------------------------------------------------------------------------
 
 # Software-Architektur – TurtleBot3: Fahren im Rohr & Folgemanöver
+
+> Stand: 19.11.2026, abgeglichen mit [`docs/uml/klassendiagramm_v4.drawio.svg`](uml/klassendiagramm_v4.drawio.svg)
+> (Commit „Klassendiagramm überarbeitet“) und den Dateien in `src/interface_package`.
+> Wo Diagramm und Code sich widersprechen, steht das in [Kapitel 7](#7-abweichungen-und-offene-punkte).
+
+![Klassendiagramm v4](uml/klassendiagramm_v4.drawio.svg)
+
 ## 1. Anforderungen
 ### 1.1 Fahren im Rohr (Aufgabe 1.3.2)
 
@@ -27,7 +35,7 @@
 | R-ROHR-2 | Im Rohr fährt der Roboter mit der zuletzt empfangenen Geschwindigkeit. Wurde noch keine empfangen, gilt **0 m/s**. |
 | R-ROHR-3 | Soll-Geschwindigkeiten außerhalb von **[0, 0.2] m/s** werden auf dieses Intervall begrenzt. |
 | R-ROHR-4 | Der Roboter fährt auf dem **Grund des Rohrs**. Eine erkannte Abweichung wird ausgeregelt. |
-| R-ROHR-5 | Die Lage im Rohr kann mit der **Kamera und/oder dem Beschleunigungssensor** erkannt werden. |
+| R-ROHR-5 | Die Lage im Rohr kann mit der **Kamera und/oder dem Beschleunigungssensor** erkannt werden. → Umsetzung über die **Kamera**: Winkel zum ArUco-Marker (`QuerRegler`). |
 | R-ROHR-6 | An den Enden des Rohres **wendet** der Roboter. |
 | R-ROHR-7 | Die Wendeplattform kann über einen **RFID-Tag** erkannt werden. → **Entfällt vorerst** (Absprache Team/Prof, RFID zu ungenau). Das Rohrende wird stattdessen über einen **ArUco-Marker** erkannt. |
 
@@ -46,32 +54,30 @@
 
 | ID | Anforderung |
 |---|---|
-| R-SYS-1 | Auch beim Folgen im Rohr wird **quer geregelt**, der Roboter bleibt also auf dem Rohrgrund. |
+| R-SYS-1 | Auch beim Folgen wird **quer geregelt**: `FolgenLogik` nutzt denselben `QuerRegler` wie `FahrenRohrLogik`. |
 | R-SYS-2 | Ungültige Werte auf `Geschwindigkeit`/`Abstand` (NaN, ±inf) werden verworfen; der letzte gültige Wert bleibt erhalten. |
-| R-SYS-3 | Kommt längere Zeit (~0.5 s) kein Fahrbefehl vom aktiven Knoten, bleibt der Roboter stehen (Watchdog). |
+| R-SYS-3 | ~~Watchdog: Kommt ~0.5 s kein Fahrbefehl, bleibt der Roboter stehen.~~ **Im Klassendiagramm v4 nicht mehr enthalten**, siehe Kap. 7. |
 | R-SYS-4 | Wird ein Roboter von vorne gesehen, hält der eigene Roboter zusätzlich zur Fehlermeldung an (Kollisionsgefahr im Rohr). |
-| R-SYS-5 | Ein Rohrende-Marker löst das Wenden erst unterhalb eines Schwellabstands aus (z.B. 0.3 m). So löst der Marker am anderen Rohrende nicht schon aus der Ferne ein Wenden aus. |
+| R-SYS-5 | Ein Rohrende-Marker löst das Wenden erst unterhalb eines Schwellabstands aus (`abstand_rohrende_id`, z.B. 0.3 m). So löst der Marker am anderen Rohrende nicht schon aus der Ferne ein Wenden aus. |
 
 ---
 
-## 2. Abgleich mit der Skizze
+## 2. Entscheidungen gegenüber der ersten Skizze
 
-Die Grundstruktur der Skizze bleibt: eine Zustandsmaschine im `system_node` als einziger Publisher
-auf `cmd_vel`, je ein Knoten für *Fahren im Rohr* und *Folgen*, die Sensorik in eigenen Knoten
-und die Actions `wenden`, `fahren_rohr` und `folgen`. Folgende Punkte sind gegenüber der Skizze geändert:
+Die Grundstruktur der Team-Skizze (`Architektur.pdf`) bleibt: eine Zustandsmaschine im `system_node` als
+einziger Publisher auf `cmd_vel`, je ein Knoten für *Fahren im Rohr* und *Folgen*, die Kamera in einem
+eigenen Knoten und die Actions `Wenden`, `FahrenRohr` und `Folgen`.
 
-| # | Skizze | Hier | Begründung |
+| # | Skizze | Jetzt (Klassendiagramm v4) | Begründung |
 |---|---|---|---|
-| 1 | Msgs `Geschwindigkeit` und `Abstand` im `interface_package` | **`std_msgs/Float32`**, keine eigenen Msgs | Die Aufgabe schreibt den Typ Float32 Message vor (R-ROHR-1, R-FOLGE-4). Mit einer eigenen Msg kann der Prüfer nicht publizieren. |
-| 2 | `system_node` abonniert Geschwindigkeit/Abstand, aber wie die Werte zu den Reglern kommen, ist offen | `system_node` prüft und begrenzt die Werte und gibt sie intern auf `/soll/geschwindigkeit` und `/soll/abstand` weiter | Begrenzung und Default-Werte gibt es dann nur an **einer** Stelle. Mit QoS *transient local* bekommen auch spät gestartete Knoten sofort den aktuellen Wert. |
-| 3 | `camera_node` berechnet auch die `RohrLage` | eigener Knoten **`rohr_lage_node`** auf Basis der **IMU** (`/imu`) | Die Rohrlage kommt vom Beschleunigungssensor, nicht von der Kamera. Ein eigener Knoten läuft im IMU-Takt und bleibt nicht hängen, wenn die Bildverarbeitung langsam ist. Die Kamera kann später zusätzlich einfließen. |
-| 4 | `fahren_im_rohr_node` und `folgen_node` abonnieren `ArUco` | `camera_node` publiziert alle gesehenen Marker auf **`/aruco/marker`**, abonniert vom `system_node`. Die Regler bekommen nur **`VorderRoboter`**. | Der `system_node` braucht die Marker für Zustandswechsel (z.B. Rohrende). Die Regler brauchen nur „Roboter ja/nein, Abstand, Seite“. |
-| 5 | `folgen_node` abonniert `RohrLage`, Querregelung dort offen | `folgen_node` nutzt **dieselbe Querregler-Klasse** wie `fahren_rohr` (Import aus Paket `fahren_rohr`) | Beim Folgen im Rohr muss genauso auf dem Grund gefahren werden (R-SYS-1), aber der Regler soll nicht doppelt programmiert werden. |
-| 6 | Paket `hardware` | Paket **`sensorik`** | Es enthält Auswertung (ArUco, Roboter, Rohrlage), keine Treiber. Die Treiber kommen von `turtlebot3_bringup` und dem Kameratreiber. |
-| 7 | `folgen_rohr_node` (Paketliste) vs. `folgen_node` (Diagramm) | einheitlich **`folgen_node`** | Einheitliche Namen |
-| 8 | Gestrichelte Linie `folgen` → `wenden_action` | Wenden ruft **nur der `system_node`** auf | Nach Fahren *und* nach Folgen wird gleich gewendet. Die Entscheidung dafür trifft die Zustandsmaschine. |
-| 9 | Msg-Namen `rohr_lage`, `aruco_marker`, … | **`RohrLage.msg`, `ArucoMarker.msg`, …** | ROS 2 verlangt CamelCase für Msg- und Action-Dateien, sonst bricht `colcon build` ab. |
-| 10 | `rfid_node`, RFID beendet `FahrenRohr`/`Folgen` | **kein RFID**. Das Rohrende erkennt der `system_node` über einen ArUco-Marker und bricht die laufende Action ab. | Absprache Team/Prof: RFID ist zu ungenau. Die Zustandswechsel liegen damit alle im `system_node`. |
+| 1 | Msgs `Geschwindigkeit` und `Abstand` im `interface_package` | **`std_msgs/Float32`**, keine eigenen Msgs | Die Aufgabe schreibt den Typ Float32 vor (R-ROHR-1, R-FOLGE-4). |
+| 2 | `system_node` abonniert Geschwindigkeit/Abstand | `system_node` prüft die Werte mit `Sollwerte` und verteilt sie auf `/soll/geschwindigkeit` und `/soll/abstand` | Prüfung, Begrenzung und Defaults gibt es nur an **einer** Stelle. |
+| 3 | `RohrLage` aus dem `camera_node` | **keine `RohrLage`**, kein Rollwinkel, keine IMU | Der Roboter kann nicht an der Rohrwand hochfahren. Die Querregelung läuft über den **Winkel zum ArUco-Marker**. |
+| 4 | Regler abonnieren `ArUco` | `camera_node` publiziert `ArucoMarker` (alle Marker) und `VorderRoboter` | Rohrende und Querregelung brauchen die Marker, das Folgen den Vorderroboter. |
+| 5 | Querregelung in `folgen` offen | `FolgenLogik` nutzt den **`QuerRegler` aus `fahren_rohr`** | Der Regler wird nicht doppelt programmiert (R-SYS-1). |
+| 6 | Paket `hardware` | Paket **`sensorik`** | Es enthält Auswertung (ArUco), keine Treiber. |
+| 7 | Wenden aus `folgen` heraus | Wenden ruft **nur der `system_node`** auf | Die Entscheidung trifft die Zustandsmaschine. |
+| 8 | RFID beendet die Fahrt | **kein RFID**, das Rohrende erkennt der `system_node` über einen ArUco-Marker | Absprache Team/Prof. |
 
 ---
 
@@ -81,73 +87,61 @@ und die Actions `wenden`, `fahren_rohr` und `folgen`. Folgende Punkte sind gegen
 
 ```mermaid
 flowchart LR
-    subgraph EXT["Extern (Prüfer / Terminal)"]
-        GES["/geschwindigkeit<br/>Float32"]
-        ABS["/abstand<br/>Float32"]
-    end
-
-    subgraph TB["Treiber (fertige Pakete, auf dem Roboter)"]
-        BRING[turtlebot3_bringup]
-        CAMDRV[Kameratreiber]
-    end
+    EXT["/geschwindigkeit<br/>/abstand<br/>(Float32, extern)"] --> SYS
 
     subgraph SEN["Paket sensorik"]
-        CAM["camera_node<br/>ArUco-Erkennung<br/>Roboter-Erkennung"]
-        LAGE["rohr_lage_node<br/>IMU → Rollwinkel"]
+        CAM["camera_node<br/>ArucoErkennung"]
     end
-
-    subgraph FR["Paket fahren_rohr"]
-        FAHR["fahren_rohr_node<br/>Regler linear + quer<br/>Server: FahrenRohr, Wenden"]
-    end
-
-    subgraph FO["Paket folgen"]
-        FOLG["folgen_node<br/>Abstandsregler + Regler quer<br/>Server: Folgen"]
-    end
-
     subgraph SY["Paket system"]
-        SYS["system_node<br/>Zustandsmaschine<br/>Sollwerte, cmd-Mux, Watchdog"]
+        SYS["system_node<br/>SystemLogik, Sollwerte"]
     end
-
-    GES --> SYS
-    ABS --> SYS
-    CAMDRV -- "/camera/image_raw<br/>/camera/camera_info" --> CAM
-    BRING -- "/imu" --> LAGE
-    BRING -- "/odom" --> CAM
-    BRING -- "/odom" --> FAHR
+    subgraph FR["Paket fahren_rohr"]
+        FAHR["fahren_rohr_node<br/>FahrenRohrLogik<br/>(QuerRegler, WendenLogik)"]
+    end
+    subgraph FO["Paket folgen"]
+        FOLG["folgen_node<br/>FolgenLogik<br/>(QuerRegler)"]
+    end
 
     CAM -- "/aruco/marker" --> SYS
+    CAM -- "/aruco/marker" --> FAHR
+    CAM -- "/aruco/marker" --> FOLG
     CAM -- "/vorder_roboter" --> SYS
-    CAM -- "/vorder_roboter" --> FOLG
-    LAGE -- "/rohr_lage" --> FAHR
-    LAGE -- "/rohr_lage" --> FOLG
 
-    SYS -- "/soll/geschwindigkeit<br/>/soll/abstand" --> FAHR
+    SYS -- "/soll/geschwindigkeit" --> FAHR
     SYS -- "/soll/geschwindigkeit<br/>/soll/abstand" --> FOLG
-    SYS -. "Action-Client:<br/>FahrenRohr, Wenden" .-> FAHR
-    SYS -. "Action-Client:<br/>Folgen" .-> FOLG
+    SYS -. "Client: FahrenRohr, Wenden" .-> FAHR
+    SYS -. "Client: Folgen" .-> FOLG
 
     FAHR -- "/fahren_rohr/cmd_vel_roh" --> SYS
     FOLG -- "/folgen/cmd_vel_roh" --> SYS
-    SYS -- "/cmd_vel" --> BRING
+    SYS -- "/cmd_vel" --> TB[TurtleBot3]
 ```
 
 ### Rollen der Knoten
 
-| Knoten | Paket | Rolle |
-|---|---|---|
-| `system_node` | `system` | **Chef:** Zustandsmaschine, Sollwerte, entscheidet, welcher Regler fahren darf, einziger Publisher auf `/cmd_vel` |
-| `fahren_rohr_node` | `fahren_rohr` | Fährt im Rohr mit Soll-Geschwindigkeit auf dem Rohrgrund; wendet |
-| `folgen_node` | `folgen` | Folgt einem Vorderroboter mit Soll-Abstand, ebenfalls auf dem Rohrgrund |
-| `camera_node` | `sensorik` | Bild → alle ArUco-Marker (`/aruco/marker`) und daraus `VorderRoboter` (Abstand, vorne/hinten, steht/fährt) |
-| `rohr_lage_node` | `sensorik` | IMU → Rollwinkel im Rohr |
+| Knoten | Paket | Logik-Klassen | Rolle |
+|---|---|---|---|
+| `system_node` | `system` | `SystemLogik`, `Sollwerte` | **Chef:** prüft und verteilt Sollwerte, Zustandsmaschine, Action-Client, einziger Publisher auf `/cmd_vel` |
+| `fahren_rohr_node` | `fahren_rohr` | `FahrenRohrLogik` (→ `QuerRegler`, `WendenLogik`) | Action-Server `FahrenRohr` und `Wenden` |
+| `folgen_node` | `folgen` | `FolgenLogik` (→ `QuerRegler`) | Action-Server `Folgen` |
+| `camera_node` | `sensorik` | `ArucoErkennung` | Kamerabild → `ArucoMarker` und `VorderRoboter` |
 
-**Grundregeln:**
-1. Nur der `system_node` publiziert auf `/cmd_vel`. Die Regler publizieren auf eigene
-   `.../cmd_vel_roh`-Topics („cmd roh“ in der Skizze). Der `system_node` leitet nur das Topic
-   des Knotens weiter, der im aktuellen Zustand aktiv ist (Multiplexer).
-2. **Wann** etwas passiert, entscheidet der `system_node`. **Wie** gefahren wird, entscheiden die Regler-Knoten.
-3. Jeder Knoten besteht aus einer **ROS-Hülle (`*_node.py`) und reiner Logik (`*_logik.py`) ohne ROS**,
-   wie in der Skizze vorgesehen. Die Logik ist damit mit `pytest` ohne Roboter testbar.
+### Grundregeln
+
+1. **Knoten = nur ROS-Schnittstelle.** Ein `*_node.py` liest Msgs, ruft seine Logik auf, publiziert das Ergebnis
+   und verwaltet die Actions. Er rechnet und entscheidet nichts.
+2. **Logik = ohne ROS.** Die Logik-Klassen importieren weder `rclpy` noch Msg-Typen und sind mit `pytest`
+   ohne Roboter testbar. ROS-Konstanten (z.B. Marker-IDs) übergibt der Knoten im Konstruktor.
+3. **Nur der `system_node` publiziert auf `/cmd_vel`.** Die Regler publizieren auf `.../cmd_vel_roh`, der
+   `system_node` leitet nur den Befehl des Reglers weiter, der im aktuellen Zustand aktiv ist.
+4. **Wann** etwas passiert, entscheidet der `system_node`. **Wie** gefahren wird, entscheiden die Regler-Knoten.
+
+| Gehört in den Knoten | Gehört in die Logik |
+|---|---|
+| Publisher, Subscriber, Timer, Action-Server und -Clients | Rechnen, Entscheiden, Begrenzen |
+| Msg-Felder auslesen und an die Logik übergeben | Sollwerte und Defaults speichern |
+| Ergebnis der Logik in eine Msg schreiben und publizieren | Zustandsmaschine, Regler, Wenden |
+| Action-Schleife, Feedback, Logger-Ausgaben | Kamera auslesen und Marker erkennen |
 
 ---
 
@@ -157,47 +151,49 @@ flowchart LR
 ros2_turtlebot_project/
 ├── Dockerfile
 ├── .devcontainer/
-├── docs/ARCHITEKTUR.md
+├── docs/
+│   ├── ARCHITEKTUR.md
+│   └── uml/klassendiagramm_v4.drawio.svg
 └── src/
-    ├── interface_package/        # ament_cmake (wird neu angelegt)
+    ├── interface_package/        # ament_cmake
     │   ├── msg/
-    │   │   ├── RohrLage.msg
-    │   │   ├── ArucoMarker.msg       # eine Message für alle N Marker
+    │   │   ├── ArucoMarker.msg
     │   │   └── VorderRoboter.msg
     │   └── action/
-    │       ├── Wenden.action
     │       ├── FahrenRohr.action
-    │       └── Folgen.action
+    │       ├── Folgen.action
+    │       └── Wenden.action
     │
-    ├── sensorik/                 # ament_python   (Skizze: „hardware“)
+    ├── sensorik/                 # ament_python
     │   └── sensorik/
-    │       ├── camera_node.py
-    │       ├── aruco_erkennung.py        # reine Logik (OpenCV)
-    │       ├── roboter_erkennung.py      # reine Logik (ID → Seite, Abstand, steht/fährt)
-    │       ├── rohr_lage.py              # reine Logik (Rollwinkel, Filter, Offset)
+    │       ├── camera_node.py            # CameraNode (nur ROS)
+    │       └── aruco_erkennung.py        # ArucoErkennung (Kamera + OpenCV)
     │
     ├── fahren_rohr/              # ament_python
     │   └── fahren_rohr/
-    │       ├── fahren_rohr_node.py       # Action-Server FahrenRohr + Wenden
-    │       ├── fahren_rohr_logik.py
-    │       ├── regler_linear.py          # Geschwindigkeit mit Rampe
-    │       ├── regler_quer.py            # PD auf Rollwinkel – wird auch von folgen genutzt
-    │       └── wenden_logik.py           # Drehung um 180° 
+    │       ├── fahren_rohr_node.py       # FahrenRohrNode (nur ROS), Server FahrenRohr + Wenden
+    │       ├── fahren_rohr_logik.py      # FahrenRohrLogik
+    │       ├── regler_quer.py            # QuerRegler, wird auch von folgen genutzt
+    │       └── wenden_logik.py           # WendenLogik
     │
     ├── folgen/                   # ament_python, <depend>fahren_rohr</depend>
     │   └── folgen/
-    │       ├── folgen_node.py            # Action-Server Folgen
-    │       └── folgen_logik.py           # Abstandsregler; importiert fahren_rohr.regler_quer
+    │       ├── folgen_node.py            # FolgenNode (nur ROS), Server Folgen
+    │       └── folgen_logik.py           # FolgenLogik, importiert fahren_rohr.regler_quer
     │
-    ├── system/                   # ament_python
-    │   └── system/
-    │       ├── system_node.py            # Action-Clients, Mux, Watchdog
-    │       ├── system_logik.py           # Zustandsmaschine (reine Logik)
-    │       └── sollwerte.py              # Begrenzung + Defaults (R-ROHR-3, R-FOLGE-6)
-
+    └── system/                   # ament_python
+        └── system/
+            ├── system_node.py            # SystemNode (nur ROS), Clients
+            ├── system_logik.py           # SystemLogik + Enum Zustand
+            └── sollwerte.py              # Sollwerte
 ```
 
-## 5. Schnittstellen (`interface_package`)
+Nicht mehr im Modell und noch zu löschen: `sensorik/rohr_lage.py`, `sensorik/roboter_erkennung.py`,
+`fahren_rohr/regler_linear.py`.
+
+---
+
+## 5. Schnittstellen
 
 ### 5.1 Vorgegebene Topics (aus der Aufgabe)
 
@@ -206,91 +202,52 @@ ros2_turtlebot_project/
 | `/geschwindigkeit` | `std_msgs/Float32` | 0.0 m/s | [0, 0.2] | `system_node` |
 | `/abstand` | `std_msgs/Float32` | 0.5 m | [0.2, 1.0] | `system_node` |
 
-### 5.2 Messages
+Die genauen Topic-Namen beim Betreuer erfragen und im Code per Remapping anpassbar halten.
+
+### 5.2 Messages (`interface_package/msg`)
 
 ```text
-# RohrLage.msg
-std_msgs/Header header
-float32 rollwinkel        # phi [rad], 0 = auf dem Rohrgrund
-float32 rollrate          # dphi/dt [rad/s]
-bool    gueltig
-
 # ArucoMarker.msg – Zustand aller bekannten Marker in einem Kamerabild
-# Index im Array = Marker-ID (0 … N-1). Alle Arrays haben fest die Länge N.
-# Bedeutung der IDs (Platzhalter, an die echten Marker anpassen)
-uint8 ROHRENDE_A=0
-uint8 ROHRENDE_B=1
-# ... weitere IDs bis N-1
-
-std_msgs/Header header              # Zeitstempel des Bildes
-bool[N]               sichtbar
-float32[N]            abstand       # [m], inf wenn nicht sichtbar
-geometry_msgs/Pose[N] pose          # Pose im Kamera-Frame, nur gültig wenn sichtbar
-
-# VorderRoboter.msg
+# Index im Array = Marker-ID. Laenge 5 ist vorlaeufig.
 std_msgs/Header header
-uint8 SEITE_HINTEN=0
-uint8 SEITE_VORNE=1
+bool[5]    sichtbare_id      # im Klassendiagramm: sichtbar
+float32[5] abstand           # [m], inf wenn nicht sichtbar
+float32[5] winkel            # waagrechter Winkel zum Marker, Einheit festlegen (Kap. 7)
+
+# VorderRoboter.msg – Ergebnis der Roboter-Erkennung
+std_msgs/Header header
 bool    erkannt
 int32   marker_id
-uint8   seite             # HINTEN = wir sehen sein Heck, VORNE = seine Front
-float32 abstand           # [m]
-bool    steht
-float32 geschwindigkeit   # geschätzte Geschwindigkeit des anderen [m/s]
-
+float32 abstand              # [m]
+float32 winkel
 ```
 
-#### ArucoMarker: eine Message für alle Marker
+**Regeln für `ArucoMarker`:**
+1. **Index = Marker-ID.** Die Marker müssen IDs von 0 bis 4 haben. Fremde IDs werden ignoriert.
+2. **Immer zuerst `sichtbare_id` prüfen.** Nicht sichtbare Marker haben `abstand = inf`, damit kein falsches
+   „Rohrende nah“ entsteht.
+3. **Jede ID hat nur einen Platz.** Tragen zwei Roboter denselben Marker, wird nur der nähere gemeldet.
+4. **Ändert sich die Länge 5**, auf Laptop **und** Roboter alle Pakete neu bauen.
 
-Die Aufgabe hat eine feste, bekannte Menge an Markern mit gleichbleibenden IDs. Deshalb gibt es
-**eine** Message mit Arrays **fester Länge N**: Der Index im Array ist die Marker-ID. Jeder
-Marker hat damit immer seinen festen Platz, egal ob er gerade sichtbar ist.
+### 5.3 Actions (`interface_package/action`)
 
-> **Noch offen:** Anzahl der Marker N und Bedeutung der IDs. Bis dahin stehen `N` und die
-> Konstanten als Platzhalter. In der `.msg` muss N als **Zahl** stehen (z.B. `float32[5]`),
-> eine Konstante ist dort nicht erlaubt.
-
-**Regeln für alle, die die Message nutzen:**
-1. **Marker-IDs 0 … N-1 verwenden.** Die Marker mit genau diesen IDs ausdrucken. Andere IDs
-   bräuchten eine Umrechnungstabelle von ID zu Index.
-2. **Immer zuerst `sichtbar` prüfen.** Auch nicht sichtbare Marker haben einen Eintrag. Damit der
-   ROS-Default `abstand = 0.0` kein falsches Ereignis auslöst (z.B. „Rohrende < 0.3 m“), setzt der
-   Publisher nicht sichtbare Marker auf `inf`.
-3. **Jede ID hat nur einen Platz.** Tragen zwei Roboter denselben Marker, wird nur der nähere
-   gemeldet. Müssen zwei Roboter mit gleicher ID gleichzeitig unterschieden werden, passt diese
-   Message nicht mehr.
-4. **Fremde IDs (≥ N) werden ignoriert**, z.B. Marker anderer Teams.
-5. **Konstanten statt Zahlen verwenden:** `ArucoMarker.ROHRENDE_A` statt `0`, und `len(msg.sichtbar)`
-   statt einer festen Länge im Python-Code.
-6. **Ändert sich N, ändert sich die Schnittstelle.** Dann `[N]` in der `.msg` anpassen und alle
-   Pakete neu bauen, die die Message nutzen, auf dem Laptop **und** auf dem Roboter. Passen die
-   Definitionen auf beiden Seiten nicht zusammen, kommen die Nachrichten ohne klare Fehlermeldung
-   nicht an.
-
-### 5.3 Actions
-
-`FahrenRohr` und `Folgen` laufen, bis der `system_node` sie abbricht (z.B. am Rohrende oder
-beim Wechsel zwischen Fahren und Folgen). `Wenden` endet von selbst, sobald der Winkel erreicht ist.
+`FahrenRohr` und `Folgen` laufen, bis der `system_node` sie abbricht. `Wenden` endet von selbst.
 
 ```text
-# FahrenRohr.action – im Rohr fahren, bis der system_node abbricht
+# FahrenRohr.action
 ---
-bool  success
+bool success
 ---
-float32 v_ist
-float32 rollwinkel
-float32 gefahrene_strecke
+float32 abstand              # im Klassendiagramm: v_ist
 
-# Folgen.action – dem Vorderroboter folgen, bis der system_node abbricht
+# Folgen.action
 ---
-bool  success
+bool success
 ---
 float32 abstand_ist
-float32 abstand_soll
-float32 v_ist
 
 # Wenden.action
-float32 winkel            # [rad], Standard pi
+float32 winkel 3.14159265    # [rad], Default pi
 ---
 bool success
 ---
@@ -301,145 +258,179 @@ float32 restwinkel
 
 | Topic | Typ | Publisher | Subscriber |
 |---|---|---|---|
-| `/geschwindigkeit`, `/abstand` | `std_msgs/Float32` | extern | system_node |
-| `/soll/geschwindigkeit`, `/soll/abstand` | `std_msgs/Float32` (transient local) | system_node | fahren_rohr_node, folgen_node |
-| `/imu` | `sensor_msgs/Imu` | turtlebot3_bringup | rohr_lage_node |
-| `/odom` | `nav_msgs/Odometry` | turtlebot3_bringup | camera_node, fahren_rohr_node |
-| `/camera/image_raw` (bzw. `/compressed`), `/camera/camera_info` | `sensor_msgs/...` | Kameratreiber | camera_node |
-| `/rohr_lage` | `interface_package/RohrLage` | rohr_lage_node | fahren_rohr_node, folgen_node |
-| `/aruco/marker` | `interface_package/ArucoMarker` | camera_node | system_node |
-| `/vorder_roboter` | `interface_package/VorderRoboter` | camera_node | system_node, folgen_node |
-| `/aruco/debug_image` | `sensor_msgs/Image` | camera_node | rqt (Debug) |
-| `/fahren_rohr/cmd_vel_roh` | `geometry_msgs/Twist` | fahren_rohr_node | system_node |
-| `/folgen/cmd_vel_roh` | `geometry_msgs/Twist` | folgen_node | system_node |
-| `/cmd_vel` | `geometry_msgs/Twist` | system_node | turtlebot3_bringup |
-| `/system/zustand`, `/system/fehler` | `std_msgs/String` | system_node | Konsole / Debug |
+| `/geschwindigkeit`, `/abstand` | `std_msgs/Float32` | extern | `system_node` |
+| `/soll/geschwindigkeit` | `std_msgs/Float32` (transient local) | `system_node` | `fahren_rohr_node`, `folgen_node` |
+| `/soll/abstand` | `std_msgs/Float32` (transient local) | `system_node` | `folgen_node` |
+| `/aruco/marker` | `interface_package/ArucoMarker` | `camera_node` | `system_node`, `fahren_rohr_node`, `folgen_node` |
+| `/vorder_roboter` | `interface_package/VorderRoboter` | `camera_node` | `system_node` |
+| `/fahren_rohr/cmd_vel_roh` | `geometry_msgs/Twist` | `fahren_rohr_node` | `system_node` |
+| `/folgen/cmd_vel_roh` | `geometry_msgs/Twist` | `folgen_node` | `system_node` |
+| `/cmd_vel` | `geometry_msgs/Twist` | `system_node` | `turtlebot3_bringup` |
 
--------------------------------------------------------------------------------------------------------
+### 5.5 Actions (Übersicht)
 
-# Folgender Abschnitt wurde noch nicht überarbeitet !!!
+| Action | Server | Client | Ende |
+|---|---|---|---|
+| `FahrenRohr` | `fahren_rohr_node` | `system_node` | nur durch Abbruch |
+| `Wenden` | `fahren_rohr_node` | `system_node` | von selbst (`succeed()`), Ergebnis über `wenden_fertig_callback` |
+| `Folgen` | `folgen_node` | `system_node` | nur durch Abbruch |
 
-## 6. Komponenten im Detail
+---
 
-### 6.1 `system_node` – Zustandsmaschine, Sollwerte, cmd-Mux
+## 6. Komponenten im Detail (nach Klassendiagramm v4)
 
-**Sollwerte (`sollwerte.py`), R-ROHR-1…3, R-FOLGE-4…6, R-SYS-2:**
-```python
-v_soll = 0.0          # R-ROHR-2: Default
-d_soll = 0.5          # R-FOLGE-5: Default
+> Dieser Abschnitt beschreibt den Stand des Klassendiagramms und ist noch vom Team zu prüfen.
 
-def neue_geschwindigkeit(wert):          # R-ROHR-1
-    if math.isfinite(wert):              # R-SYS-2
-        v_soll = clamp(wert, 0.0, 0.2)   # R-ROHR-3
+### 6.1 Paket `system`
 
-def neuer_abstand(wert):                 # R-FOLGE-4
-    if math.isfinite(wert):
-        d_soll = clamp(wert, 0.2, 1.0)   # R-FOLGE-6
-```
-Die Defaults werden beim Start einmal auf `/soll/...` publiziert, danach bei jeder Änderung.
+**`SystemNode`** (nur ROS)
 
-**Zustandsmaschine (`system_logik.py`):**
+| Attribute | Methoden |
+|---|---|
+| `logik: SystemLogik`, `sollwerte: Sollwerte` | `geschwindigkeit_callback(msg)`, `abstand_callback(msg)`: Wert an `Sollwerte` geben, bei Erfolg auf `/soll/…` publizieren |
+| `client_fahren`, `client_folgen`, `client_wenden: ActionClient` | `aruco_callback(msg)`: Marker an `SystemLogik.marker_empfangen()`, bei neuem Zustand `wechsle_zu()` |
+| `aktives_ziel: ClientGoalHandle` | `fahren_cmd_callback(msg)`, `folgen_cmd_callback(msg)`: Befehl des aktiven Reglers an `/cmd_vel` weiterleiten |
+| `pub_cmd_vel`, `pub_soll_geschwindigkeit`, `pub_soll_abstand: Publisher` | `wechsle_zu(zustand)`: laufende Action abbrechen, passende Action starten bzw. bei GEGENVERKEHR anhalten und Fehler melden |
+| | `starte(client, goal, ist_wenden)`: Goal asynchron senden, bei `Wenden` auf das Ergebnis warten |
+| | `wenden_fertig_callback(ergebnis)`: Status prüfen, `SystemLogik.wenden_fertig()`, `wechsle_zu(FAHREN)` |
+
+**`Sollwerte`** (Logik): `V_MIN = 0.0`, `V_MAX = 0.2`, `D_MIN = 0.2`, `D_MAX = 1.0` (statisch), `v_soll = 0.0`, `d_soll = 0.5`.
+`neue_geschwindigkeit(wert)` und `neuer_abstand(wert)` verwerfen NaN/inf, begrenzen und geben `True` zurück,
+wenn der Wert übernommen wurde (R-ROHR-1…3, R-FOLGE-4…6, R-SYS-2).
+
+**`SystemLogik`** (Logik): `zustand`, `rohrende_ids`, `id_hinten`, `id_vorne`, `abstand_rohrende_id`.
+`marker_empfangen(sichtbar, abstand)` gibt den neuen Zustand zurück oder `None`. `wenden_fertig()` setzt FAHREN.
+`_naechster_zustand(sichtbar, abstand)` prüft die Regeln von oben nach unten:
+
+| Priorität | Bedingung | neuer Zustand |
+|---|---|---|
+| 1 | gerade am Wenden | `WENDEN` (bleibt, bis das Wenden fertig ist) |
+| 2 | Marker `id_vorne` sichtbar | `GEGENVERKEHR` (R-FOLGE-1, R-SYS-4) |
+| 3 | Rohrende-Marker näher als `abstand_rohrende_id` | `WENDEN` (R-ROHR-6, R-SYS-5) |
+| 4 | Marker `id_hinten` sichtbar | `FOLGEN` (R-FOLGE-5) |
+| 5 | sonst | `FAHREN` |
+
+**`Zustand`** (Enum): `INIT`, `FAHREN`, `FOLGEN`, `WENDEN`, `GEGENVERKEHR`, `FEHLER`
 
 ```mermaid
 stateDiagram-v2
     [*] --> INIT
-    INIT --> FAHREN_ROHR: alle Action-Server verfügbar
-
-    FAHREN_ROHR --> FOLGEN: Vorderroboter von HINTEN erkannt
-    FOLGEN --> FAHREN_ROHR: Vorderroboter verloren
-
-    FAHREN_ROHR --> WENDEN: Rohrende-Marker unter Schwellabstand
-    FOLGEN --> WENDEN: Rohrende-Marker unter Schwellabstand
-    WENDEN --> FAHREN_ROHR: Wenden erfolgreich
-
-    FAHREN_ROHR --> GEGENVERKEHR: Roboter von VORNE erkannt
-    FOLGEN --> GEGENVERKEHR: Roboter von VORNE erkannt
-    GEGENVERKEHR --> FAHREN_ROHR: nicht mehr von vorne sichtbar
-
+    INIT --> FAHREN: alle Action-Server verfügbar
+    FAHREN --> FOLGEN: Roboter von hinten sichtbar
+    FOLGEN --> FAHREN: Roboter von hinten weg
+    FAHREN --> WENDEN: Rohrende näher als Schwelle
+    FOLGEN --> WENDEN: Rohrende näher als Schwelle
+    WENDEN --> FAHREN: Wenden erfolgreich
     WENDEN --> FEHLER: Wenden fehlgeschlagen
+    FAHREN --> GEGENVERKEHR: Roboter von vorne sichtbar
+    FOLGEN --> GEGENVERKEHR: Roboter von vorne sichtbar
+    GEGENVERKEHR --> FAHREN: Roboter von vorne weg
     FEHLER --> [*]
 ```
 
-| Zustand | aktive Action | Mux leitet weiter | Bemerkung |
+| Zustand | aktive Action | an `/cmd_vel` weitergeleitet |
+|---|---|---|
+| `INIT` | – | nichts (Stopp) |
+| `FAHREN` | `FahrenRohr` | `/fahren_rohr/cmd_vel_roh` |
+| `FOLGEN` | `Folgen` | `/folgen/cmd_vel_roh` |
+| `WENDEN` | `Wenden` | `/fahren_rohr/cmd_vel_roh` |
+| `GEGENVERKEHR` | – | nichts (Stopp), Fehlermeldung im Log |
+| `FEHLER` | – | nichts (Stopp) |
+
+### 6.2 Paket `fahren_rohr`
+
+**`FahrenRohrNode`** (nur ROS): `logik: FahrenRohrLogik`, `pub_cmd`, `server_fahren`, `server_wenden`.
+`soll_geschwindigkeit_callback(msg)` → `logik.setze_geschwindigkeit()`. `fahren_execute()` und `wenden_execute()`
+rufen in einer Schleife (20 Hz) `logik.fahrbefehl()` bzw. `logik.wendebefehl()` auf und publizieren das Ergebnis.
+`cancel_callback()` gibt `CancelResponse.ACCEPT` zurück.
+
+**`FahrenRohrLogik`** (Logik), der einzige Ansprechpartner des Knotens:
+
+| Methode | Aufgabe |
+|---|---|
+| `setze_geschwindigkeit(wert)` | `v_soll` übernehmen (schon geprüft vom `system_node`) |
+| `starte_fahren()` | `quer.sollkurs_setzen()` |
+| `fahrbefehl()` | `(v_soll, quer.berechne(v_soll))` |
+| `starte_wenden(winkel)`, `wendebefehl()`, `restwinkel()`, `wenden_fertig()` | an `WendenLogik` weiterreichen |
+
+**`QuerRegler`** (Logik, auch von `folgen` genutzt): `kp`, `omega_max`, `auslenkwinkel`, `sollkurs`.
+- `berechne_auslenkung(sichtbar, abstand, winkel)`: berechnet aus den ArUco-Daten den `auslenkwinkel`,
+  also wie weit der Roboter seitlich von der Richtung zum Marker abweicht (R-ROHR-4, R-ROHR-5 über die Kamera).
+- `sollkurs_setzen()`: Sollwert für den Auslenkwinkel festlegen.
+- `berechne(v)`: P-Regler `ω = kp · (sollkurs − auslenkwinkel)`, begrenzt auf ±`omega_max`. Bei `v ≈ 0` gilt `ω = 0`.
+
+**`WendenLogik`** (Logik): `k`, `omega_max`, `toleranz`, `ziel`.
+`starte(auslenkwinkel, winkel)`, `restwinkel(auslenkwinkel)`, `fahrbefehl(auslenkwinkel)` → `(0, ω)`,
+`fertig(auslenkwinkel)`, `_normalisiere(winkel)` (statisch, bringt Winkel auf (−π, π]).
+
+### 6.3 Paket `folgen`
+
+**`FolgenNode`** (nur ROS): `logik: FolgenLogik`, `pub_cmd`, `server_folgen`.
+`soll_geschwindigkeit_callback`, `soll_abstand_callback`, `aruco_callback` reichen die Werte an die Logik weiter.
+`folgen_execute()` ruft in einer Schleife `logik.fahrbefehl()` auf und meldet `abstand_ist` als Feedback.
+
+**`FolgenLogik`** (Logik): `marker_id`, `k`, `v_soll = 0.0`, `d_soll = 0.5`, `abstand_ist`, `quer: QuerRegler`.
+
+| Methode | Aufgabe |
+|---|---|
+| `setze_geschwindigkeit(wert)`, `setze_abstand(wert)` | Sollwerte übernehmen |
+| `marker_empfangen(sichtbar, abstand, winkel)` | Daten des Heck-Markers (`marker_id`) speichern (R-FOLGE-2) |
+| `setze_orientierung(abstand, winkel)` | Daten an den `QuerRegler` geben |
+| `starte_folgen()` | `quer.sollkurs_setzen()` |
+| `fahrbefehl()` | `v = k · (abstand_ist − d_soll)`, begrenzt auf [0, `v_soll`]; `ω = quer.berechne(v)` (R-FOLGE-5) |
+
+### 6.4 Paket `sensorik`
+
+**`CameraNode`** (nur ROS): `logik: ArucoErkennung`, `pub_marker`, `timer`.
+`timer_callback()` ruft `logik.erkenne()` auf, schreibt das Ergebnis in `ArucoMarker` bzw. `VorderRoboter` und publiziert.
+
+**`ArucoErkennung`** (Logik): `kamera: VideoCapture`, `detektor: ArucoDetector`, `anzahl_marker`,
+`objekt_punkte`, `kamera_matrix`, `verzerrung`.
+- `erkenne()`: Bild lesen, Marker suchen (`DICT_5X5_100`), mit `solvePnP` Abstand und Winkel je Marker berechnen.
+- `schliessen()`: Kamera freigeben.
+- Die Testversion in `aruco_skripte/aruco_logic` unterstützt die alte (`Dictionary_get`) **und** die neue
+  OpenCV-API (`ArucoDetector`).
+- **Voraussetzung:** Kamera kalibrieren. Bisher stehen in `aruco_logic` eine geschätzte Brennweite und keine Verzerrung.
+
+### 6.5 Technische Hinweise für alle Knoten mit Action-Server
+
+- **`MultiThreadedExecutor` + `ReentrantCallbackGroup`:** Die `execute`-Schleifen laufen mit `time.sleep()`.
+  Ohne mehrere Threads kommen währenddessen keine Topics und kein Cancel an.
+- **`cancel_callback` muss `CancelResponse.ACCEPT` zurückgeben.** Der Standard in rclpy lehnt Abbrüche ab.
+- **Soll-Topics mit `DurabilityPolicy.TRANSIENT_LOCAL`** auf beiden Seiten, damit spät gestartete Knoten den letzten Wert bekommen.
+- **Client asynchron:** `send_goal_async`, `get_result_async`, `cancel_goal_async` mit `add_done_callback`,
+  nie `spin_until_future_complete` in einem Callback.
+
+---
+
+## 7. Abweichungen und offene Punkte
+
+### 7.1 Code passt nicht zum Diagramm
+
+| # | Wo | Problem | Folge |
 |---|---|---|---|
-| INIT | – | nichts (Stopp) | wartet auf Action-Server (`wait_for_server`) |
-| FAHREN_ROHR | `FahrenRohr` | `/fahren_rohr/cmd_vel_roh` | |
-| FOLGEN | `Folgen` | `/folgen/cmd_vel_roh` | Wechsel: `FahrenRohr` abbrechen, dann `Folgen` starten |
-| WENDEN | `Wenden` | `/fahren_rohr/cmd_vel_roh` | Auslöser: Rohrende-ID in `/aruco/marker` unter dem Schwellabstand (R-SYS-5). Laufende Action abbrechen, dann `Wenden` starten. |
-| GEGENVERKEHR | – | nichts (Stopp) | Fehlermeldung über `get_logger().error()` und `/system/fehler` (R-FOLGE-1, R-SYS-4) |
-| FEHLER | – | nichts (Stopp) | |
+| 1 | `interface_package/CMakeLists.txt` | Dort steht noch `"msg/RohrLage.msg"`, die Datei ist aber gelöscht | **`colcon build` bricht ab.** Zeile entfernen. |
+| 2 | `ArucoMarker.msg` | Feld heißt `sichtbare_id`, im Diagramm `sichtbar` | Einen Namen festlegen |
+| 3 | `FahrenRohr.action` | Feedback ist `abstand`, im Diagramm `v_ist` | Einen Namen festlegen |
+| 4 | `VorderRoboter.msg` | hat einen `header`, im Diagramm nicht | Diagramm ergänzen |
+| 5 | `aruco_skripte/aruco_logic` | Marker-IDs 0 und **69** | Mit „Index = Marker-ID“ und Länge 5 passt ID 69 nicht. Entweder IDs 0–4 drucken oder eine Zuordnung ID → Index einführen. |
+| 6 | `aruco_skripte/aruco_logic` | `winkel` in **Grad** | `QuerRegler` und `WendenLogik` rechnen mit rad. Eine Einheit festlegen, am besten rad. |
 
-- **Hysterese:** Der Vorderroboter muss z.B. 5 Bilder in Folge erkannt bzw. verloren sein, bevor
-  der Zustand wechselt. Sonst springt das System bei Fehlerkennungen hin und her.
-- Action-Clients **asynchron** aufrufen (`send_goal_async`, `cancel_goal_async` + Callbacks)
-  und in Callbacks nie blockierend warten.
-- **Mux + Watchdog (R-SYS-3):** Kommt vom aktiven Topic länger als 0.5 s nichts, wird ein
-  Stopp-Befehl gesendet. Zusätzlich v auf [0, 0.2] und ω auf ±ω_max begrenzen.
+### 7.2 Lücken im Klassendiagramm
 
-### 6.2 `fahren_rohr_node` – Fahren im Rohr und Wenden
+| # | Wo | Lücke | Vorschlag |
+|---|---|---|---|
+| 1 | `FahrenRohrNode` / `FahrenRohrLogik` | Der Knoten abonniert `/aruco/marker`, hat aber kein `aruco_callback`, und die Logik keine Methode, um die Marker an den `QuerRegler` zu geben | `aruco_callback` im Knoten und z.B. `FahrenRohrLogik.marker_empfangen(sichtbar, abstand, winkel)` ergänzen |
+| 2 | `WendenLogik` | arbeitet mit `auslenkwinkel` aus der Kamera. Beim Drehen um 180° ist der Marker aber nicht im Bild, der Winkel lässt sich so nicht messen. | Gierwinkel aus `/imu` oder `/odom` nutzen, oder drehen, bis der Marker des **anderen** Rohrendes mittig im Bild ist |
+| 3 | `QuerRegler` | Welcher Marker für `berechne_auslenkung` gilt, ist offen | Den Rohrende-Marker vor dem Roboter nehmen; ohne sichtbaren Marker `ω = 0` |
+| 4 | `FolgenLogik` | `setze_orientierung(abstand, winkel)` und `marker_empfangen(...)` überschneiden sich | Eine Methode reicht: `marker_empfangen` gibt die Daten auch an den `QuerRegler` |
+| 5 | `SystemLogik` | Watchdog (R-SYS-3) und die Mux-Regel `befehl_erlaubt()` sind entfallen | Ohne Watchdog fährt der Roboter bei einem Absturz eines Reglers mit dem letzten Befehl weiter. Die Mux-Entscheidung steht jetzt im Knoten, das widerspricht Grundregel 1. |
+| 6 | `SystemLogik` | `INIT` und `FEHLER` sind im Enum, aber ohne Übergänge in den Methoden | `INIT → FAHREN` beim Start, `WENDEN → FEHLER` in `wenden_fertig_callback` |
+| 7 | `SystemNode` / `VorderRoboter` | Wofür der `system_node` `/vorder_roboter` braucht, ist offen. Die Zustandsmaschine nutzt nur `ArucoMarker`. | Entweder `VorderRoboter` für vorne/hinten nutzen oder die Msg streichen |
 
-Zwei Action-Server in einem Knoten, deshalb `MultiThreadedExecutor` + Callback-Groups verwenden
-(wie im bisherigen `SimpleMoverServer`).
+### 7.3 Mit dem Betreuer klären
 
-**Regler linear (`regler_linear.py`):** fährt `v_soll` mit einer **Rampe** an
-(z.B. 0.2 m/s²). Bei einem Sprung der Geschwindigkeit würde der Roboter sonst ruckeln und die Wand
-hochrutschen.
-
-**Regler quer (`regler_quer.py`), R-ROHR-4:** PD-Regler auf den Rollwinkel
-```
-ω = −K_p · φ − K_d · φ̇        (begrenzt auf ±ω_max)
-```
-- Fährt der Roboter seitlich die Rohrwand hoch, kippt er um die Längsachse (φ ≠ 0).
-- Der D-Anteil dämpft, weil ein schräg fahrender Roboter die Wand hochklettert
-  (φ̇ ≈ v·sin(ψ)/R). Ohne D-Anteil schwingt der Roboter.
-- **Vorzeichen** am echten Roboter prüfen.
-- Bei v ≈ 0 ist ω = 0, denn im Stand kann ein Differentialantrieb die Querablage nicht korrigieren.
-
-**Wenden (`wenden_logik.py`), R-ROHR-6:** auf der Stelle um π drehen, geregelt über den Gierwinkel
-aus `/odom`. Dafür kann die bestehende `Bahnberechnung` wiederverwendet werden: Zielposition =
-aktuelle Position und `ziel_theta = theta + π`. Dann wird nur Phase 2 (Drehen) ausgeführt.
-
-### 6.3 `folgen_node` – Folgemanöver (R-FOLGE-5)
-
-**Abstandsregler (`folgen_logik.py`):**
-```
-v = v_vorne + K_a · (d_ist − d_soll)
-v = clamp(min(v, v_soll), 0, 0.2)        # nicht schneller als im Rohr erlaubt (siehe Kap. 10)
-ω = regler_quer(φ, φ̇)                    # gleiche Klasse wie in fahren_rohr (R-SYS-1)
-```
-- `v_vorne` (geschätzte Geschwindigkeit des Vorderroboters aus `VorderRoboter`) wirkt als
-  Vorsteuerung. Ohne sie bleibt ein Abstandsfehler bestehen.
-- Ein stehender Roboter von hinten ist nur der Sonderfall `v_vorne = 0`: Der Roboter hält bei
-  `d_soll` dahinter an.
-- Ist der Vorderroboter kurz nicht sichtbar, mit der letzten Messung weiterrechnen bzw. langsamer
-  werden. Den Wechsel zurück zu `FahrenRohr` entscheidet der `system_node`.
-
-### 6.4 `camera_node` – ArUco- und Roboter-Erkennung (R-FOLGE-1…3)
-
-- Bild + `camera_info` → `cv_bridge` → `cv2.aruco` → Pose je Marker
-  (`estimatePoseSingleMarkers` / `solvePnP`).
-- Publiziert **bei jedem Bild** den Zustand aller N bekannten Marker als `ArucoMarker` auf
-  `/aruco/marker`, auch wenn keiner sichtbar ist (siehe Kap. 5.2).
-- Welche ID was bedeutet, steht als Konstanten in `ArucoMarker.msg`. So nutzen alle Knoten
-  dieselben Namen.
-- **Vorne/hinten über die Marker-ID:** Beide Marker zeigen zur Kamera, deshalb lässt sich die Seite
-  nur über die ID unterscheiden. Die Zuordnung steht als Konstanten in `ArucoMarker.msg`
-  (z.B. `ROBOTER_HINTEN`, `ROBOTER_VORNE`, IDs innerhalb 0 … N-1).
-- **Abstand:** Tiefe (z) des Markers im Kamera-Frame, korrigiert um die Versätze zur eigenen Front und
-  zum Heck des anderen Roboters.
-- **Steht/fährt:** Geschwindigkeit des anderen = eigene Geschwindigkeit (`/odom`) + Änderung des
-  Abstands über die Zeit (gefiltert). Liegt sie unter einem Schwellwert, gilt er als stehend.
-- Mehrere Roboter sichtbar → den nächsten verwenden. Debug-Bild mit eingezeichneten Markern publizieren.
-- **Voraussetzung:** Kamera kalibrieren (`ros2 run camera_calibration cameracalibrator ...`).
-- **OpenCV in Humble ist 4.5.4**, also gilt die *alte* ArUco-API (`cv2.aruco.Dictionary_get`,
-  `DetectorParameters_create`, `detectMarkers`). Tutorials mit `cv2.aruco.ArucoDetector` (≥ 4.7)
-  funktionieren nicht. Kein `opencv-contrib-python` per pip nachinstallieren.
-
-### 6.5 `rohr_lage_node` – Lage im Rohr (R-ROHR-5)
-
-- Quelle: `/imu` vom OpenCR-Board.
-- Rollwinkel aus der Beschleunigung: `φ_acc = atan2(a_y, a_z)`, verrauscht beim Fahren, deshalb
-  **Komplementärfilter** mit dem Gyroskop: `φ = α·(φ + ω_x·Δt) + (1−α)·φ_acc`, mit α ≈ 0.95–0.98.
-- **Nullpunkt kalibrieren:** im Stand auf ebenem Boden den Mittelwert als Offset speichern.
-- Kamera-basierte Rohrerkennung (in der Skizze im `camera_node`) ist eine optionale Ausbaustufe und
-  kann später hier mit einfließen.
+- Genaue Topic-Namen für Geschwindigkeit und Abstand.
+- Ob die Querregelung über den Kamerawinkel R-ROHR-4/5 erfüllt.
+- Darf der Roboter beim Folgen schneller als `v_soll` fahren? Aktuell: nein, `v` ist auf `v_soll` begrenzt.
+- Reicht bei Gegenverkehr eine Fehlermeldung, oder soll der Roboter auch wenden?
