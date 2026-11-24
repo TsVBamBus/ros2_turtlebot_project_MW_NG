@@ -1,11 +1,17 @@
-Goal für fahren im rohr ist ein abstand
-Folgen ohne goal ist möglich, jedoch nicht idee des projekts, eher node die aufgerufen wird
-nicht array an erkannten markern, sondern pro aruco marker eine message
--->die zwei publisher weg sondern nur einer
-interface jetzt festlegen --> aruco marker erkannt als boolean doch nicht mitschicken
-abbruchbedingung timer/nach n false messages (je nach dem ob erkannt mitgeschickt wird)
+Goal für fahren im rohr ist ein abstand -- done
+Folgen ohne goal ist möglich, jedoch nicht idee des projekts, eher node die aufgerufen wird -- done
+nicht array an erkannten markern, sondern pro aruco marker eine message -- done
+-->die zwei publisher weg sondern nur einer -- done
+interface jetzt festlegen --> aruco marker erkannt als boolean doch nicht mitschicken -- done
+abbruchbedingung timer/nach n false messages (je nach dem ob erkannt mitgeschickt wird) -- done
 p regler für fahren
 pi regler für folgen --> gleiche klasse verschiedene instanzen
+
+LängsRegler für Folgen definieren -- done
+Watchdog in Klassendiagramm -- done 
+Subscriber als Attribut hinzufügen  -- done
+Klassendiagramm in Code implementieren
+
 
 scp aruco_skripte/aruco_abstand_test.py ubuntu@10.42.0.1:~/
 -->läd die datei aruco_abstand_test auf den py 
