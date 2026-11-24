@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool, Float32MultiArray
+from std_msgs.msg import Float32MultiArray
 
 
 class ArucoEmpfaenger(Node):
@@ -15,7 +15,9 @@ class ArucoEmpfaenger(Node):
         abstand = nachricht.data[1]
         winkel = nachricht.data[2]
         self.get_logger().info(
-            f"ID {marker_id}: Abstand {abstand } m, Winkel {winkel:.1f} Grad")
+            f"ID {marker_id}: Abstand {abstand * 100:.1f} cm, "
+            f"Winkel {winkel:.1f} Grad")
+
 
 def main():
     rclpy.init()

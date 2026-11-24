@@ -8,15 +8,12 @@ MARKER_GROESSEN = {
     69: 0.075,
 }
 
-BRENNWEITE = 615.0
-
 
 class ArucoErkennung:
-    def __init__(self):
-        self.kameramatrix = np.array([[BRENNWEITE, 0, 320],
-                                      [0, BRENNWEITE, 240],
-                                      [0, 0, 1]], dtype=np.float32)
-        self.verzerrung = np.zeros((5, 1), dtype=np.float32)
+    def __init__(self, kalibrierdatei="kamera_kalibrierung.npz"):
+        daten = np.load(kalibrierdatei)
+        self.kameramatrix = daten["kamera_matrix"]
+        self.verzerrung = daten["verzerrung"]
 
         if hasattr(cv2.aruco, "ArucoDetector"):
             self.neue_api = True
@@ -29,6 +26,10 @@ class ArucoErkennung:
             self.dictionary = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_100)
             self.parameter = cv2.aruco.DetectorParameters_create()
             self.parameter.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+
+        self.kamera = cv2.VideoCapture(0)
+        self.kamera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.kamera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     def suche_marker(self, grau):
         if self.neue_api:
@@ -45,8 +46,13 @@ class ArucoErkennung:
                          [ h, -h, 0],
                          [-h, -h, 0]], dtype=np.float32)
 
-    def erkenne(self, grau):
+    def erkenne(self):
+        ok, bild = self.kamera.read()
+        if not ok:
+            return None
+
         ergebnisse = []
+        grau = cv2.cvtColor(bild, cv2.COLOR_BGR2GRAY)
         ecken, ids = self.suche_marker(grau)
         if ids is None:
             return ergebnisse
@@ -71,3 +77,26 @@ class ArucoErkennung:
                 "winkel": math.degrees(math.atan2(x, z)),
             })
         return ergebnisse
+
+    def schliessen(self):
+        self.kamera.release()
+
+
+if __name__ == "__main__":
+    erkennung = ArucoErkennung()
+    print("Auflösung:",
+          erkennung.kamera.get(cv2.CAP_PROP_FRAME_WIDTH),
+          erkennung.kamera.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    for i in range(10):
+        ergebnisse = erkennung.erkenne()
+    erkennung.schliessen()
+
+    if ergebnisse is None:
+        print("Kein Bild bekommen")
+    elif len(ergebnisse) == 0:
+        print("Marker NICHT erkannt")
+    else:
+        for m in ergebnisse:
+            print(f"ID {m['id']}: Abstand {m['abstand'] * 100:.1f} cm, "
+                  f"Tiefe {m['tiefe'] * 100:.1f} cm, Winkel {m['winkel']:.1f} Grad")

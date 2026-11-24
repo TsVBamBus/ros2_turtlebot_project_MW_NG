@@ -1,7 +1,6 @@
-import cv2
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool, Float32MultiArray
+from std_msgs.msg import Float32MultiArray
 
 from aruco_logic import ArucoErkennung
 
@@ -9,30 +8,21 @@ from aruco_logic import ArucoErkennung
 class ArucoNode(Node):
     def __init__(self):
         super().__init__("aruco_node")
-        self.pub_roboter = self.create_publisher(Float32MultiArray, "/aruco/roboter", 10)
         self.pub_marker = self.create_publisher(Float32MultiArray, "/aruco/marker", 10)
 
         self.erkennung = ArucoErkennung()
-        self.kamera = cv2.VideoCapture(0)  #in die logik auslagern
         self.timer = self.create_timer(0.2, self.pruefe_bild)
 
     def pruefe_bild(self):
-        ok, bild = self.kamera.read()
-        if not ok:
+        ergebnisse = self.erkennung.erkenne()
+        if ergebnisse is None:
             self.get_logger().warn("Kein Bild bekommen")
             return
 
-        grau = cv2.cvtColor(bild, cv2.COLOR_BGR2GRAY)
-        ergebnisse = self.erkennung.erkenne(grau)
-
-        roboter_erkannt = Float32MultiArray()
-        roboter_erkannt.data = [float(len(ergebnisse) > 0)]
-        self.pub_roboter.publish(roboter_erkannt)
-
         for m in ergebnisse:
-            messung = Float32MultiArray()
-            messung.data = [float(m["id"]), m["abstand"], m["winkel"]]
-            self.pub_messung.publish(messung)
+            nachricht = Float32MultiArray()
+            nachricht.data = [float(m["id"]), m["abstand"], m["winkel"]]
+            self.pub_marker.publish(nachricht)
 
 
 def main():
@@ -42,7 +32,7 @@ def main():
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
-    node.kamera.release()
+    node.erkennung.schliessen()
     node.destroy_node()
     if rclpy.ok():
         rclpy.shutdown()
