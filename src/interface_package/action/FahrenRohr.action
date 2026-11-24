@@ -1,7 +1,8 @@
-# Goal: leer - läuft bis der system_node abbricht
+# Goal
+float32 abstand_aruco
 ---
 # Result
 bool success
 ---
 # Feedback
-float32 abstand
+float32 v_ist

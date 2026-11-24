@@ -4,9 +4,6 @@ nicht array an erkannten markern, sondern pro aruco marker eine message -- done
 -->die zwei publisher weg sondern nur einer -- done
 interface jetzt festlegen --> aruco marker erkannt als boolean doch nicht mitschicken -- done
 abbruchbedingung timer/nach n false messages (je nach dem ob erkannt mitgeschickt wird) -- done
-p regler für fahren
-pi regler für folgen --> gleiche klasse verschiedene instanzen
-
 LängsRegler für Folgen definieren -- done
 Watchdog in Klassendiagramm -- done 
 Subscriber als Attribut hinzufügen  -- done
@@ -17,3 +14,13 @@ scp aruco_skripte/aruco_abstand_test.py ubuntu@10.42.0.1:~/
 -->läd die datei aruco_abstand_test auf den py 
 
 im ssh Terminal mit python3 und dem dateinamen startet man das gewählte programm
+
+ToDo Niklas:
+    p regler für fahren
+    pi regler für folgen --> gleiche klasse verschiedene instanzen
+    implementieren des LängsRegler und QuerRegler
+
+
+Designentscheidungen:
+    LängsRegler auch für FahrenRohr 
+        --> warum überhaupt 2 Packages für fahren und folgen ?

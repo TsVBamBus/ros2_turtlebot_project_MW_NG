@@ -14,8 +14,6 @@ find_package(rosidl_default_generators REQUIRED)
 
 # Jede neue .msg/.action-Datei MUSS hier eingetragen werden
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/RohrLage.msg"
-  "msg/VorderRoboter.msg"
   "msg/ArucoMarker.msg"
   "action/FahrenRohr.action"
   "action/Folgen.action"
