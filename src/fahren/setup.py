@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'folgen'
+package_name = 'fahren'
 
 setup(
     name=package_name,
@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'folgen_node = folgen.folgen_node:main'
+            'fahren_node = fahren.fahren_node:main'
         ],
     },
 )
