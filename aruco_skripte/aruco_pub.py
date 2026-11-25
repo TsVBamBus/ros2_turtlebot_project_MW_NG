@@ -9,7 +9,7 @@ class ArucoNode(Node):
     def __init__(self):
         super().__init__("aruco_node")
       
-        self.pub_marker = self.create_publisher(Float32MultiArray, "/aruco/marker", 10)
+        self.pub_marker = self.create_publisher(Float32MultiArray, "/aruco/marker", 2)
 
         self.erkennung = ArucoErkennung()
         self.timer = self.create_timer(1, self.pruefe_bild)

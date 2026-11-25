@@ -7,7 +7,7 @@ class ArucoEmpfaenger(Node):
     def __init__(self):
         super().__init__("aruco_empfaenger")
         self.abo_marker = self.create_subscription(
-            Float32MultiArray, "/aruco/marker", self.marker_erhalten, 10)
+            Float32MultiArray, "/aruco/marker", self.marker_erhalten, 2)
 
     def marker_erhalten(self, nachricht):
         daten = nachricht.data
