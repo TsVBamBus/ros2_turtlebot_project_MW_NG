@@ -5,6 +5,10 @@ import numpy as np
 
 MARKER_GROESSEN = {
     0: 0.172,
+    1: 0.067,
+    2: 0.195,
+    3: 0.032,
+    4: 0.114,
     69: 0.075,
 }
 
@@ -16,13 +20,13 @@ class ArucoErkennung:
         self.verzerrung = daten["verzerrung"]
 
         if hasattr(cv2.aruco, "ArucoDetector"):
-            self.neue_api = True
+            self.neue_version = True
             dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100)
             parameter = cv2.aruco.DetectorParameters()
             parameter.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
             self.detektor = cv2.aruco.ArucoDetector(dictionary, parameter)
         else:
-            self.neue_api = False
+            self.neue_version = False
             self.dictionary = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_100)
             self.parameter = cv2.aruco.DetectorParameters_create()
             self.parameter.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
@@ -32,7 +36,7 @@ class ArucoErkennung:
         self.kamera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     def suche_marker(self, grau):
-        if self.neue_api:
+        if self.neue_version:
             ecken, ids, abgelehnt = self.detektor.detectMarkers(grau)
         else:
             ecken, ids, abgelehnt = cv2.aruco.detectMarkers(

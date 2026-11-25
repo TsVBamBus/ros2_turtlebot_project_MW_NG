@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Bool, Float32MultiArray
 
 from aruco_logic import ArucoErkennung
 
@@ -8,16 +8,21 @@ from aruco_logic import ArucoErkennung
 class ArucoNode(Node):
     def __init__(self):
         super().__init__("aruco_node")
+        self.pub_erkannt = self.create_publisher(Bool, "/aruco/erkannt", 10)
         self.pub_marker = self.create_publisher(Float32MultiArray, "/aruco/marker", 10)
 
         self.erkennung = ArucoErkennung()
-        self.timer = self.create_timer(0.2, self.pruefe_bild)
+        self.timer = self.create_timer(1, self.pruefe_bild)
 
     def pruefe_bild(self):
         ergebnisse = self.erkennung.erkenne()
         if ergebnisse is None:
             self.get_logger().warn("Kein Bild bekommen")
             return
+
+        erkannt = Bool()
+        erkannt.data = len(ergebnisse) > 0
+        self.pub_erkannt.publish(erkannt)
 
         for m in ergebnisse:
             nachricht = Float32MultiArray()

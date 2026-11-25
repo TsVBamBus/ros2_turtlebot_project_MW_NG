@@ -1,16 +1,23 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Bool, Float32MultiArray
 
 
 class ArucoEmpfaenger(Node):
     def __init__(self):
         super().__init__("aruco_empfaenger")
-        self.abo = self.create_subscription(
-            Float32MultiArray, "/aruco/marker", self.messung_erhalten, 10
-        )
+        self.abo_erkannt = self.create_subscription(
+            Bool, "/aruco/erkannt", self.erkannt_erhalten, 10)
+        self.abo_marker = self.create_subscription(
+            Float32MultiArray, "/aruco/marker", self.marker_erhalten, 10)
 
-    def messung_erhalten(self, nachricht):
+    def erkannt_erhalten(self, nachricht):
+        if nachricht.data:
+            self.get_logger().info("Marker erkannt")
+        else:
+            self.get_logger().info("Kein Marker erkannt")
+
+    def marker_erhalten(self, nachricht):
         marker_id = int(nachricht.data[0])
         abstand = nachricht.data[1]
         winkel = nachricht.data[2]

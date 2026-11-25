@@ -10,7 +10,7 @@ kamera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 for i in range(10):
     kamera.read()
 
-nummer = 0
+nummer = 17
 print("Enter = Foto aufnehmen, q und Enter = beenden")
 
 while True:
