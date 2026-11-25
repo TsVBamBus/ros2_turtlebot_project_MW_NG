@@ -8,7 +8,7 @@ from aruco_logic import ArucoErkennung
 class ArucoNode(Node):
     def __init__(self):
         super().__init__("aruco_node")
-        self.pub_erkannt = self.create_publisher(Bool, "/aruco/erkannt", 10)
+      
         self.pub_marker = self.create_publisher(Float32MultiArray, "/aruco/marker", 10)
 
         self.erkennung = ArucoErkennung()
@@ -20,9 +20,17 @@ class ArucoNode(Node):
             self.get_logger().warn("Kein Bild bekommen")
             return
 
-        erkannt = Bool()
-        erkannt.data = len(ergebnisse) > 0
-        self.pub_erkannt.publish(erkannt)
+        nachricht = Float32MultiArray()
+        if len(ergebnisse) > 0:
+            daten = [1.0]  # True: Marker erkannt
+            for m in ergebnisse:
+                daten.extend([float(m["id"]), m["abstand"], m["winkel"]])
+            nachricht.data = daten
+        else:
+            nachricht.data = [0.0]  # False: Kein Marker erkannt
+
+        self.pub_marker.publish(nachricht)
+
 
         for m in ergebnisse:
             nachricht = Float32MultiArray()
