@@ -24,3 +24,15 @@ ToDo Niklas:
 Designentscheidungen:
     LängsRegler auch für FahrenRohr 
         --> warum überhaupt 2 Packages für fahren und folgen ?
+
+26.11:
+Fehlermeldung bei keinem Marker und bei keiner Nachricht
+schauen ob man eine fehlermeldung ausgeben lassen will bei der Kalibrierung
+kein float array sondern eigene message
+delay überprüfen
+
+ToDos:
+Fehlermeldung bei der kalibierung einbauen
+message nicht nur als float sondern eigene message struktur
+delay prüfen
+QoS und Timer als Variable und nicht als Magic number
