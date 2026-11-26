@@ -15,27 +15,21 @@ class ArucoNode(Node):
         self.timer = self.create_timer(1, self.pruefe_bild)
 
     def pruefe_bild(self):
-        ergebnisse = self.erkennung.erkenne()
-        if ergebnisse is None:
+        ergebnisse = self.erkennung.erkenne()  # ruft erkenne aus der logic auf
+        if ergebnisse is None:  # bei read kam false zurück
             self.get_logger().warn("Kein Bild bekommen")
             return
 
-        nachricht = Float32MultiArray()
         if len(ergebnisse) > 0:
-            daten = [1.0]  # True: Marker erkannt
             for m in ergebnisse:
-                daten.extend([float(m["id"]), m["abstand"], m["winkel"]])
-            nachricht.data = daten
+                nachricht = Float32MultiArray()
+                nachricht.data = [1.0, float(m["id"]), m["abstand"], m["winkel"]]
+                self.pub_marker.publish(nachricht)#für jeden eintrag eine message
         else:
-            nachricht.data = [0.0]  # False: Kein Marker erkannt
-
-        self.pub_marker.publish(nachricht)
-
-
-        for m in ergebnisse:
             nachricht = Float32MultiArray()
-            nachricht.data = [float(m["id"]), m["abstand"], m["winkel"]]
+            nachricht.data = [0.0]  # Kein Marker erkannt = 0.0
             self.pub_marker.publish(nachricht)
+
 
 
 def main():

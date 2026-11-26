@@ -17,14 +17,12 @@ class ArucoEmpfaenger(Node):
             self.get_logger().info("Kein Marker erkannt")
             return
 
-        self.get_logger().info("Marker erkannt:")
-        for i in range(1, len(daten), 3):
-            marker_id = int(daten[i])
-            abstand = daten[i + 1]
-            winkel = daten[i + 2]
-            self.get_logger().info(
-                f"  -> ID {marker_id}: Abstand {abstand * 100:.1f} cm, "
-                f"Winkel {winkel:.1f} Grad")
+        marker_id = int(daten[1])
+        abstand = daten[2]
+        winkel = daten[3]
+        self.get_logger().info(
+            f"Marker erkannt -> ID {marker_id}: Abstand {abstand * 100:.1f} cm, "
+            f"Winkel {winkel:.1f} Grad")
 
 
 def main():

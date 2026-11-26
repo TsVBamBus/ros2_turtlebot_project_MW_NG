@@ -19,28 +19,28 @@ class ArucoErkennung:
         self.kameramatrix = daten["kamera_matrix"]
         self.verzerrung = daten["verzerrung"]
 
-        if hasattr(cv2.aruco, "ArucoDetector"):
-            self.neue_version = True
-            dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100)
-            parameter = cv2.aruco.DetectorParameters()
-            parameter.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
-            self.detektor = cv2.aruco.ArucoDetector(dictionary, parameter)
-        else:
-            self.neue_version = False
-            self.dictionary = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_100)
-            self.parameter = cv2.aruco.DetectorParameters_create()
-            self.parameter.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+        #if hasattr(cv2.aruco, "ArucoDetector"):
+         #   self.neue_version = True
+          #  dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100)
+           # parameter = cv2.aruco.DetectorParameters()
+            #parameter.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+            #self.detektor = cv2.aruco.ArucoDetector(dictionary, parameter)
+        #else:
+         #   self.neue_version = False
+          #  self.dictionary = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_100)
+           # self.parameter = cv2.aruco.DetectorParameters_create()
+            #self.parameter.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
 
         self.kamera = cv2.VideoCapture(0)
         self.kamera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.kamera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     def suche_marker(self, grau):
-        if self.neue_version:
-            ecken, ids, abgelehnt = self.detektor.detectMarkers(grau)
-        else:
-            ecken, ids, abgelehnt = cv2.aruco.detectMarkers(
-                grau, self.dictionary, parameters=self.parameter)
+        #if self.neue_version:
+        ecken, ids, abgelehnt = self.detektor.detectMarkers(grau)
+        #else:
+         #   ecken, ids, abgelehnt = cv2.aruco.detectMarkers(
+          #      grau, self.dictionary, parameters=self.parameter)
         return ecken, ids
 
     def objektpunkte(self, groesse):
@@ -73,11 +73,10 @@ class ArucoErkennung:
             if not ok:
                 continue
 
-            x, y, z = tvec.flatten()
+            x, y, z = tvec.flatten()#x nach rechts, y nach unten, z nach vorne
             ergebnisse.append({
                 "id": marker_id,
-                "tiefe": float(z),
-                "abstand": float(math.sqrt(x * x + y * y + z * z)),
+                "abstand": float(math.sqrt(x * x + z * z)),#realer Abstand wäre y*y dabei, aber höhe ist für uns uninteressant
                 "winkel": math.degrees(math.atan2(x, z)),
             })
         return ergebnisse
@@ -86,7 +85,7 @@ class ArucoErkennung:
         self.kamera.release()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":#Testcode aufgerufen mit python3 aruco_logic.py gibt auflösung und erkannten Marker aus
     erkennung = ArucoErkennung()
     print("Auflösung:",
           erkennung.kamera.get(cv2.CAP_PROP_FRAME_WIDTH),
@@ -103,4 +102,4 @@ if __name__ == "__main__":
     else:
         for m in ergebnisse:
             print(f"ID {m['id']}: Abstand {m['abstand'] * 100:.1f} cm, "
-                  f"Tiefe {m['tiefe'] * 100:.1f} cm, Winkel {m['winkel']:.1f} Grad")
+                  f"Winkel {m['winkel']:.1f} Grad")
